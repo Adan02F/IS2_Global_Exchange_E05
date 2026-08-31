@@ -2,13 +2,14 @@ import requests
 import base64
 import json
 import re
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.conf import settings
 from django.http import HttpResponseBadRequest
+from django.db import models
 from .models import UserProfile, AuditLog, Role
 
 def get_client_ip(request):
@@ -364,7 +365,8 @@ def register_view(request):
                     "requiredActions": ["VERIFY_EMAIL"],
                     "attributes": {
                         "userType": ["fisica"],
-                        "ci_ruc": [ci_ruc]
+                        "ci_ruc": [ci_ruc],
+                        "category": ["MINORISTA"]
                     },
                     "credentials": [
                         {
@@ -481,7 +483,7 @@ def keycloak_callback_view(request):
             role_obj, _ = Role.objects.get_or_create(name="Corporate")
             is_corp = True
         else:
-            role_obj, _ = Role.objects.get_or_create(name="Individual")
+            role_obj, _ = Role.objects.get_or_create(name="Cliente")
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.role = role_obj
