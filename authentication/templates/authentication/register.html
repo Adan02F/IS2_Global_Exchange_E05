@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Exchange - Registro de Clientes</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
+        <!-- Encabezado Corporativo -->
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-14 h-14 bg-blue-800 text-white rounded-full mb-3 text-2xl font-bold shadow-md">
+                GX
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900">Global Exchange</h1>
+            <p class="text-sm text-slate-600 mt-1">Registro de Clientes</p>
+        </div>
+
+        {% if error %}
+            <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-600 text-red-700 rounded-r-lg text-sm shadow-sm" role="alert">
+                <span class="font-semibold">Atención:</span> {{ error }}
+            </div>
+        {% endif %}
+
+        <!-- Selector de Tipo de Persona -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Seleccione tipo de registro</label>
+            <div class="grid grid-cols-2 gap-3">
+                <label class="flex items-center justify-center p-3 border rounded-lg cursor-pointer transition {% if person_type != 'juridica' and person_type != 'jiridica' %}border-blue-600 bg-blue-50 text-blue-800 font-semibold{% else %}border-slate-300 text-slate-700 hover:bg-slate-50{% endif %}" id="label-fisica">
+                    <input type="radio" name="person_type" value="fisica" {% if person_type != 'juridica' and person_type != 'jiridica' %}checked{% endif %} class="sr-only" onchange="switchPersonType('fisica')">
+                    Persona Física
+                </label>
+                <label class="flex items-center justify-center p-3 border rounded-lg cursor-pointer transition {% if person_type == 'juridica' or person_type == 'jiridica' %}border-blue-600 bg-blue-50 text-blue-800 font-semibold{% else %}border-slate-300 text-slate-700 hover:bg-slate-50{% endif %}" id="label-juridica">
+                    <input type="radio" name="person_type" value="juridica" {% if person_type == 'juridica' or person_type == 'jiridica' %}checked{% endif %} class="sr-only" onchange="switchPersonType('juridica')">
+                    Persona Jurídica
+                </label>
+            </div>
+        </div>
+
+        <!-- Formulario de Persona Física -->
+        <form method="POST" action="{% url 'register' %}" class="space-y-5" id="form-fisica" {% if person_type == 'juridica' or person_type == 'jiridica' %}style="display: none;"{% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="person_type" value="fisica">
+            
+            <div>
+                <label for="full_name" class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                <input type="text" id="full_name" name="full_name" value="{{ full_name|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="Ej. Juan Carlos Pérez">
+                <p class="text-xs text-slate-500 mt-1">Solo caracteres alfabéticos y espacios.</p>
+            </div>
+
+            <div>
+                <label for="ci_ruc" class="block text-sm font-medium text-slate-700 mb-1">Número de Cédula o RUC</label>
+                <input type="text" id="ci_ruc" name="ci_ruc" value="{{ ci_ruc|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="Ej. 1234567 o 1234567-8">
+                <p class="text-xs text-slate-500 mt-1">Formato numérico válido.</p>
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium text-slate-700 mb-1">Correo Electrónico</label>
+                <input type="email" id="email" name="email" value="{{ email|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="usuario@dominio.com">
+                <p class="text-xs text-slate-500 mt-1">Máscara texto@dominio.extensión.</p>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
+                <input type="password" id="password" name="password" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="••••••••">
+                <p class="text-xs text-slate-500 mt-1">Mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales.</p>
+            </div>
+
+            <div>
+                <button type="submit" 
+                        class="w-full flex items-center justify-center py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
+                    Registrarse en el Sistema
+                </button>
+            </div>
+        </form>
+
+        <!-- Formulario de Persona Jurídica -->
+        <form method="POST" action="{% url 'register' %}" class="space-y-5" id="form-juridica" {% if person_type != 'juridica' and person_type != 'jiridica' %}style="display: none;"{% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="person_type" value="juridica">
+            
+            <div>
+                <label for="company_name" class="block text-sm font-medium text-slate-700 mb-1">Nombre de la Empresa</label>
+                <input type="text" id="company_name" name="company_name" value="{{ company_name|default:full_name|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="Ej. Global Exchange S.A.">
+                <p class="text-xs text-slate-500 mt-1">Solo caracteres alfabéticos y espacios.</p>
+            </div>
+
+            <div>
+                <label for="ci_ruc_juridica" class="block text-sm font-medium text-slate-700 mb-1">RUC de la Empresa</label>
+                <input type="text" id="ci_ruc_juridica" name="ci_ruc" value="{{ ci_ruc|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="Ej. 80012345-6">
+                <p class="text-xs text-slate-500 mt-1">Formato numérico de RUC válido.</p>
+            </div>
+
+            <div>
+                <label for="email_juridica" class="block text-sm font-medium text-slate-700 mb-1">Correo Electrónico Corporativo</label>
+                <input type="email" id="email_juridica" name="email" value="{{ email|default:'' }}" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="empresa@dominio.com">
+                <p class="text-xs text-slate-500 mt-1">Máscara texto@dominio.extensión.</p>
+            </div>
+
+            <div>
+                <label for="password_juridica" class="block text-sm font-medium text-slate-700 mb-1">Contraseña Corporativa</label>
+                <input type="password" id="password_juridica" name="password" required
+                       class="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-slate-900"
+                       placeholder="••••••••">
+                <p class="text-xs text-slate-500 mt-1">Mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales.</p>
+            </div>
+
+            <div>
+                <button type="submit" 
+                        class="w-full flex items-center justify-center py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
+                    Registrarse como Persona Jurídica
+                </button>
+            </div>
+        </form>
+
+        <!-- Enlace a Iniciar Sesión -->
+        <div class="mt-6 text-center text-sm">
+            <span class="text-slate-600">¿Ya tienes una cuenta?</span>
+            <a href="{% url 'login' %}" class="font-medium text-blue-600 hover:text-blue-800 ml-1">Iniciar Sesión</a>
+        </div>
+    </div>
+
+    <script>
+        function switchPersonType(type) {
+            const formFisica = document.getElementById('form-fisica');
+            const formJuridica = document.getElementById('form-juridica');
+            const labelFisica = document.getElementById('label-fisica');
+            const labelJuridica = document.getElementById('label-juridica');
+
+            if (type === 'juridica') {
+                formFisica.style.display = 'none';
+                formJuridica.style.display = 'block';
+                labelJuridica.className = "flex items-center justify-center p-3 border rounded-lg cursor-pointer transition border-blue-600 bg-blue-50 text-blue-800 font-semibold";
+                labelFisica.className = "flex items-center justify-center p-3 border rounded-lg cursor-pointer transition border-slate-300 text-slate-700 hover:bg-slate-50";
+            } else {
+                formJuridica.style.display = 'none';
+                formFisica.style.display = 'block';
+                labelFisica.className = "flex items-center justify-center p-3 border rounded-lg cursor-pointer transition border-blue-600 bg-blue-50 text-blue-800 font-semibold";
+                labelJuridica.className = "flex items-center justify-center p-3 border rounded-lg cursor-pointer transition border-slate-300 text-slate-700 hover:bg-slate-50";
+            }
+        }
+    </script>
+</body>
+</html>

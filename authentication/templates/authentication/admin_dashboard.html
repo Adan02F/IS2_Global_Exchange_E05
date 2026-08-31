@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrativo - Global Exchange</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-slate-900 text-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 bg-blue-800 rounded-lg flex items-center justify-center font-bold text-lg">GX</div>
+                    <span class="font-bold text-lg">Global Exchange</span>
+                    <span class="bg-blue-800 text-xs px-2.5 py-1 rounded-full font-medium ml-2">Administrador</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-slate-300">Usuario: <strong class="text-white">{{ request.user.username }}</strong></span>
+                    <a href="{% url 'logout' %}" class="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
+                        Cerrar Sesión
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900">Panel de Control Administrativo</h1>
+            <p class="text-slate-600 mt-1">Gestión centralizada de operaciones de cambio, usuarios y seguridad.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Simulación de Tasas</h3>
+                <p class="text-sm text-slate-600 mb-4">Simule compra y venta de divisas con cotizaciones en tiempo real.</p>
+                <a href="#" class="text-blue-800 font-semibold text-sm hover:underline">Acceder &rarr;</a>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Gestión de Clientes</h3>
+                <p class="text-sm text-slate-600 mb-4">Administre clientes personales y corporativos, KYC y límites.</p>
+                <a href="{% url 'admin_client_list' %}" class="text-blue-800 font-semibold text-sm hover:underline">Administrar &rarr;</a>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Roles y Permisos</h3>
+                <p class="text-sm text-slate-600 mb-4">CRUD de roles, asignación granular de permisos.</p>
+                <a href="{% url 'admin_roles' %}" class="text-blue-800 font-semibold text-sm hover:underline">Gestionar &rarr;</a>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Auditoría y Seguridad</h3>
+                <p class="text-sm text-slate-600 mb-4">Revise los registros de inicio de sesión y alertas de seguridad MFA.</p>
+                <a href="{% url 'admin_audit_logs' %}" class="text-blue-800 font-semibold text-sm hover:underline">Ver Registros &rarr;</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
