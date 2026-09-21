@@ -787,7 +787,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "govQPT0CppZDdLm98GLYnrqbLzWcqPLQ",
+      "secret": "ECkvAbkhWLaDzKAqBax3PWLNP1ybFDhg",
       "redirectUris": [
         "http://localhost:8000/auth/callback/"
       ],
