@@ -87,25 +87,25 @@
 
                         <label class="view-source-button" for="mod-views-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.shortcuts</span><span class="w"> </span><span class="kn">import</span> <span class="n">render</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">get_object_or_404</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth</span><span class="w"> </span><span class="kn">import</span> <span class="n">login</span><span class="p">,</span> <span class="n">logout</span><span class="p">,</span> <span class="n">authenticate</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">login_required</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.views.decorators.csrf</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_csrf_cookie</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpResponseBadRequest</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">timezone</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">UserProfile</span><span class="p">,</span> <span class="n">AuditLog</span><span class="p">,</span> <span class="n">Role</span><span class="p">,</span> <span class="n">Permission</span><span class="p">,</span> <span class="n">CorporateGroup</span><span class="p">,</span> <span class="n">GroupMembership</span><span class="p">,</span> <span class="n">ClientRegistrationRequest</span><span class="p">,</span> <span class="n">MemberRequest</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">tasas_cambio.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeRate</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">gestion_clientes.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_user_interface_context</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span> <span class="nn">requests</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">import</span> <span class="nn">base64</span>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">import</span> <span class="nn">json</span>
+</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="kn">import</span> <span class="nn">re</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="kn">from</span> <span class="nn">django.shortcuts</span> <span class="kn">import</span> <span class="n">render</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">get_object_or_404</span>
+</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="kn">from</span> <span class="nn">django.contrib.auth</span> <span class="kn">import</span> <span class="n">login</span><span class="p">,</span> <span class="n">logout</span><span class="p">,</span> <span class="n">authenticate</span>
+</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="kn">from</span> <span class="nn">django.contrib.auth.decorators</span> <span class="kn">import</span> <span class="n">login_required</span>
+</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="kn">import</span> <span class="n">User</span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="kn">from</span> <span class="nn">django.views.decorators.csrf</span> <span class="kn">import</span> <span class="n">ensure_csrf_cookie</span>
+</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a><span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponseBadRequest</span>
+</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a><span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
+</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a><span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">timezone</span>
+</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a><span class="kn">from</span> <span class="nn">.models</span> <span class="kn">import</span> <span class="n">UserProfile</span><span class="p">,</span> <span class="n">AuditLog</span><span class="p">,</span> <span class="n">Role</span><span class="p">,</span> <span class="n">Permission</span><span class="p">,</span> <span class="n">CorporateGroup</span><span class="p">,</span> <span class="n">GroupMembership</span><span class="p">,</span> <span class="n">ClientRegistrationRequest</span><span class="p">,</span> <span class="n">MemberRequest</span>
+</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a><span class="kn">from</span> <span class="nn">tasas_cambio.models</span> <span class="kn">import</span> <span class="n">ExchangeRate</span>
+</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a><span class="kn">from</span> <span class="nn">gestion_clientes.views</span> <span class="kn">import</span> <span class="n">get_user_interface_context</span>
 </span><span id="L-18"><a href="#L-18"><span class="linenos"> 18</span></a>
-</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_client_ip</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a><span class="k">def</span> <span class="nf">get_client_ip</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a><span class="sd">    Obtiene la dirección IP del cliente desde la request HTTP.</span>
 </span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a><span class="sd">    </span>
@@ -123,7 +123,7 @@
 </span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a>    <span class="k">return</span> <span class="n">ip</span>
 </span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a>
 </span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a><span class="k">def</span><span class="w"> </span><span class="nf">login_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a><span class="k">def</span> <span class="nf">login_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-39"><a href="#L-39"><span class="linenos"> 39</span></a><span class="sd">    Vista de inicio de sesión principal. Muestra el acceso a Keycloak SSO</span>
 </span><span id="L-40"><a href="#L-40"><span class="linenos"> 40</span></a><span class="sd">    y la pizarra pública de tasas de cambio en tiempo real (PSE-9) para invitados y usuarios.</span>
@@ -207,7 +207,7 @@
 </span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a>
 </span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">&#39;authentication/login.html&#39;</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
 </span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a>
-</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_login_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a><span class="k">def</span> <span class="nf">keycloak_login_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a><span class="sd">    Redirige al servidor de Keycloak para iniciar el flujo OIDC / SSO de autenticación.</span>
 </span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a><span class="sd">    </span>
@@ -221,7 +221,7 @@
 </span><span id="L-132"><a href="#L-132"><span class="linenos">132</span></a>    <span class="n">params</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;?client_id=</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span><span class="si">}</span><span class="s2">&amp;redirect_uri=</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REDIRECT_URI</span><span class="si">}</span><span class="s2">&amp;response_type=code&amp;scope=openid&quot;</span>
 </span><span id="L-133"><a href="#L-133"><span class="linenos">133</span></a>    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">keycloak_url</span> <span class="o">+</span> <span class="n">params</span><span class="p">)</span>
 </span><span id="L-134"><a href="#L-134"><span class="linenos">134</span></a>
-</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_register_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a><span class="k">def</span> <span class="nf">keycloak_register_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-136"><a href="#L-136"><span class="linenos">136</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-137"><a href="#L-137"><span class="linenos">137</span></a><span class="sd">    Redirige al servidor de Keycloak para iniciar el flujo de registro de nuevos usuarios (IdP).</span>
 </span><span id="L-138"><a href="#L-138"><span class="linenos">138</span></a><span class="sd">    </span>
@@ -236,7 +236,7 @@
 </span><span id="L-147"><a href="#L-147"><span class="linenos">147</span></a>    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">keycloak_reg_url</span> <span class="o">+</span> <span class="n">params</span><span class="p">)</span>
 </span><span id="L-148"><a href="#L-148"><span class="linenos">148</span></a>
 </span><span id="L-149"><a href="#L-149"><span class="linenos">149</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="L-150"><a href="#L-150"><span class="linenos">150</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_callback_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-150"><a href="#L-150"><span class="linenos">150</span></a><span class="k">def</span> <span class="nf">keycloak_callback_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-151"><a href="#L-151"><span class="linenos">151</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-152"><a href="#L-152"><span class="linenos">152</span></a><span class="sd">    Callback del SSO de Keycloak tras autenticación exitosa.</span>
 </span><span id="L-153"><a href="#L-153"><span class="linenos">153</span></a><span class="sd">    Intercambia el código por tokens y obtiene roles y grupos directamente desde Keycloak (Fuente de Verdad Principal).</span>
@@ -382,7 +382,7 @@
 </span><span id="L-293"><a href="#L-293"><span class="linenos">293</span></a>        <span class="k">return</span> <span class="n">HttpResponseBadRequest</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error en comunicación con Keycloak: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </span><span id="L-294"><a href="#L-294"><span class="linenos">294</span></a>
 </span><span id="L-295"><a href="#L-295"><span class="linenos">295</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a><span class="k">def</span><span class="w"> </span><span class="nf">mfa_verify_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a><span class="k">def</span> <span class="nf">mfa_verify_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-297"><a href="#L-297"><span class="linenos">297</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a><span class="sd">    Vista para la verificación de iToken / MFA obligatorio para administrativos y corporativos.</span>
 </span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a><span class="sd">    </span>
@@ -421,7 +421,7 @@
 </span><span id="L-332"><a href="#L-332"><span class="linenos">332</span></a>    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">&#39;authentication/mfa_verify.html&#39;</span><span class="p">)</span>
 </span><span id="L-333"><a href="#L-333"><span class="linenos">333</span></a>
 </span><span id="L-334"><a href="#L-334"><span class="linenos">334</span></a><span class="nd">@login_required</span>
-</span><span id="L-335"><a href="#L-335"><span class="linenos">335</span></a><span class="k">def</span><span class="w"> </span><span class="nf">dashboard_redirect_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-335"><a href="#L-335"><span class="linenos">335</span></a><span class="k">def</span> <span class="nf">dashboard_redirect_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-336"><a href="#L-336"><span class="linenos">336</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-337"><a href="#L-337"><span class="linenos">337</span></a><span class="sd">    Redirige al usuario a su panel personalizado según su rol asignado,</span>
 </span><span id="L-338"><a href="#L-338"><span class="linenos">338</span></a><span class="sd">    incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas según categoría (PSE-9).</span>
@@ -465,8 +465,8 @@
 </span><span id="L-376"><a href="#L-376"><span class="linenos">376</span></a>        <span class="k">else</span><span class="p">:</span>
 </span><span id="L-377"><a href="#L-377"><span class="linenos">377</span></a>            <span class="n">category</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">category</span>
 </span><span id="L-378"><a href="#L-378"><span class="linenos">378</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="L-379"><a href="#L-379"><span class="linenos">379</span></a>            <span class="kn">from</span><span class="w"> </span><span class="nn">tasas_cambio.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_default_benefit_rules</span>
-</span><span id="L-380"><a href="#L-380"><span class="linenos">380</span></a>            <span class="kn">from</span><span class="w"> </span><span class="nn">tasas_cambio.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientBenefitRule</span>
+</span><span id="L-379"><a href="#L-379"><span class="linenos">379</span></a>            <span class="kn">from</span> <span class="nn">tasas_cambio.views</span> <span class="kn">import</span> <span class="n">ensure_default_benefit_rules</span>
+</span><span id="L-380"><a href="#L-380"><span class="linenos">380</span></a>            <span class="kn">from</span> <span class="nn">tasas_cambio.models</span> <span class="kn">import</span> <span class="n">ClientBenefitRule</span>
 </span><span id="L-381"><a href="#L-381"><span class="linenos">381</span></a>            <span class="n">ensure_default_benefit_rules</span><span class="p">()</span>
 </span><span id="L-382"><a href="#L-382"><span class="linenos">382</span></a>            <span class="n">rule</span> <span class="o">=</span> <span class="n">ClientBenefitRule</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">category_code</span><span class="o">=</span><span class="n">category</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
 </span><span id="L-383"><a href="#L-383"><span class="linenos">383</span></a>            <span class="k">if</span> <span class="n">rule</span><span class="p">:</span>
@@ -536,7 +536,7 @@
 </span><span id="L-447"><a href="#L-447"><span class="linenos">447</span></a>        <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">&#39;authentication/user_dashboard.html&#39;</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
 </span><span id="L-448"><a href="#L-448"><span class="linenos">448</span></a>
 </span><span id="L-449"><a href="#L-449"><span class="linenos">449</span></a><span class="nd">@login_required</span>
-</span><span id="L-450"><a href="#L-450"><span class="linenos">450</span></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_user_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-450"><a href="#L-450"><span class="linenos">450</span></a><span class="k">def</span> <span class="nf">switch_to_user_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-451"><a href="#L-451"><span class="linenos">451</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-452"><a href="#L-452"><span class="linenos">452</span></a><span class="sd">    Permite al usuario cambiar a la interfaz de usuario regular (sin cliente).</span>
 </span><span id="L-453"><a href="#L-453"><span class="linenos">453</span></a><span class="sd">    &quot;&quot;&quot;</span>
@@ -551,7 +551,7 @@
 </span><span id="L-462"><a href="#L-462"><span class="linenos">462</span></a>    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="s1">&#39;dashboard_redirect&#39;</span><span class="p">)</span>
 </span><span id="L-463"><a href="#L-463"><span class="linenos">463</span></a>
 </span><span id="L-464"><a href="#L-464"><span class="linenos">464</span></a><span class="nd">@login_required</span>
-</span><span id="L-465"><a href="#L-465"><span class="linenos">465</span></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_client_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-465"><a href="#L-465"><span class="linenos">465</span></a><span class="k">def</span> <span class="nf">switch_to_client_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-466"><a href="#L-466"><span class="linenos">466</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-467"><a href="#L-467"><span class="linenos">467</span></a><span class="sd">    Permite al usuario regresar a la interfaz de cliente.</span>
 </span><span id="L-468"><a href="#L-468"><span class="linenos">468</span></a><span class="sd">    &quot;&quot;&quot;</span>
@@ -565,7 +565,7 @@
 </span><span id="L-476"><a href="#L-476"><span class="linenos">476</span></a>    <span class="p">)</span>
 </span><span id="L-477"><a href="#L-477"><span class="linenos">477</span></a>    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="s1">&#39;dashboard_redirect&#39;</span><span class="p">)</span>
 </span><span id="L-478"><a href="#L-478"><span class="linenos">478</span></a>
-</span><span id="L-479"><a href="#L-479"><span class="linenos">479</span></a><span class="k">def</span><span class="w"> </span><span class="nf">logout_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-479"><a href="#L-479"><span class="linenos">479</span></a><span class="k">def</span> <span class="nf">logout_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-480"><a href="#L-480"><span class="linenos">480</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-481"><a href="#L-481"><span class="linenos">481</span></a><span class="sd">    Cierra la sesión local en Django y la sesión SSO en Keycloak.</span>
 </span><span id="L-482"><a href="#L-482"><span class="linenos">482</span></a><span class="sd">    </span>
@@ -586,7 +586,7 @@
 </span><span id="L-497"><a href="#L-497"><span class="linenos">497</span></a>    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">keycloak_logout_url</span><span class="p">)</span>
 </span><span id="L-498"><a href="#L-498"><span class="linenos">498</span></a>
 </span><span id="L-499"><a href="#L-499"><span class="linenos">499</span></a><span class="nd">@login_required</span>
-</span><span id="L-500"><a href="#L-500"><span class="linenos">500</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_roles_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-500"><a href="#L-500"><span class="linenos">500</span></a><span class="k">def</span> <span class="nf">admin_roles_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-501"><a href="#L-501"><span class="linenos">501</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-502"><a href="#L-502"><span class="linenos">502</span></a><span class="sd">    Vista de administración para gestionar la descripción y asignación granular de permisos</span>
 </span><span id="L-503"><a href="#L-503"><span class="linenos">503</span></a><span class="sd">    de los roles fijos del sistema: Admin, Analista y Cliente (PSE-26).</span>
@@ -713,7 +713,7 @@
 </span><span id="L-624"><a href="#L-624"><span class="linenos">624</span></a>    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s1">&#39;authentication/admin_roles.html&#39;</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
 </span><span id="L-625"><a href="#L-625"><span class="linenos">625</span></a>
 </span><span id="L-626"><a href="#L-626"><span class="linenos">626</span></a><span class="nd">@login_required</span>
-</span><span id="L-627"><a href="#L-627"><span class="linenos">627</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_audit_logs_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="L-627"><a href="#L-627"><span class="linenos">627</span></a><span class="k">def</span> <span class="nf">admin_audit_logs_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="L-628"><a href="#L-628"><span class="linenos">628</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-629"><a href="#L-629"><span class="linenos">629</span></a><span class="sd">    Vista de administración para consultar el registro de auditoría del sistema (PSE-26).</span>
 </span><span id="L-630"><a href="#L-630"><span class="linenos">630</span></a><span class="sd">    &quot;&quot;&quot;</span>
@@ -751,7 +751,7 @@
 
     </div>
     <a class="headerlink" href="#get_client_ip"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_client_ip-20"><a href="#get_client_ip-20"><span class="linenos">20</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_client_ip</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_client_ip-20"><a href="#get_client_ip-20"><span class="linenos">20</span></a><span class="k">def</span> <span class="nf">get_client_ip</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="get_client_ip-21"><a href="#get_client_ip-21"><span class="linenos">21</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="get_client_ip-22"><a href="#get_client_ip-22"><span class="linenos">22</span></a><span class="sd">    Obtiene la dirección IP del cliente desde la request HTTP.</span>
 </span><span id="get_client_ip-23"><a href="#get_client_ip-23"><span class="linenos">23</span></a><span class="sd">    </span>
@@ -794,7 +794,7 @@
     </div>
     <a class="headerlink" href="#login_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="login_view-37"><a href="#login_view-37"><span class="linenos"> 37</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="login_view-38"><a href="#login_view-38"><span class="linenos"> 38</span></a><span class="k">def</span><span class="w"> </span><span class="nf">login_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="login_view-38"><a href="#login_view-38"><span class="linenos"> 38</span></a><span class="k">def</span> <span class="nf">login_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="login_view-39"><a href="#login_view-39"><span class="linenos"> 39</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="login_view-40"><a href="#login_view-40"><span class="linenos"> 40</span></a><span class="sd">    Vista de inicio de sesión principal. Muestra el acceso a Keycloak SSO</span>
 </span><span id="login_view-41"><a href="#login_view-41"><span class="linenos"> 41</span></a><span class="sd">    y la pizarra pública de tasas de cambio en tiempo real (PSE-9) para invitados y usuarios.</span>
@@ -903,7 +903,7 @@ y la pizarra pública de tasas de cambio en tiempo real (PSE-9) para invitados y
 
     </div>
     <a class="headerlink" href="#keycloak_login_redirect"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="keycloak_login_redirect-122"><a href="#keycloak_login_redirect-122"><span class="linenos">122</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_login_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="keycloak_login_redirect-122"><a href="#keycloak_login_redirect-122"><span class="linenos">122</span></a><span class="k">def</span> <span class="nf">keycloak_login_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="keycloak_login_redirect-123"><a href="#keycloak_login_redirect-123"><span class="linenos">123</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="keycloak_login_redirect-124"><a href="#keycloak_login_redirect-124"><span class="linenos">124</span></a><span class="sd">    Redirige al servidor de Keycloak para iniciar el flujo OIDC / SSO de autenticación.</span>
 </span><span id="keycloak_login_redirect-125"><a href="#keycloak_login_redirect-125"><span class="linenos">125</span></a><span class="sd">    </span>
@@ -941,7 +941,7 @@ y la pizarra pública de tasas de cambio en tiempo real (PSE-9) para invitados y
 
     </div>
     <a class="headerlink" href="#keycloak_register_redirect"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="keycloak_register_redirect-136"><a href="#keycloak_register_redirect-136"><span class="linenos">136</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_register_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="keycloak_register_redirect-136"><a href="#keycloak_register_redirect-136"><span class="linenos">136</span></a><span class="k">def</span> <span class="nf">keycloak_register_redirect</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="keycloak_register_redirect-137"><a href="#keycloak_register_redirect-137"><span class="linenos">137</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="keycloak_register_redirect-138"><a href="#keycloak_register_redirect-138"><span class="linenos">138</span></a><span class="sd">    Redirige al servidor de Keycloak para iniciar el flujo de registro de nuevos usuarios (IdP).</span>
 </span><span id="keycloak_register_redirect-139"><a href="#keycloak_register_redirect-139"><span class="linenos">139</span></a><span class="sd">    </span>
@@ -981,7 +981,7 @@ y la pizarra pública de tasas de cambio en tiempo real (PSE-9) para invitados y
     </div>
     <a class="headerlink" href="#keycloak_callback_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="keycloak_callback_view-150"><a href="#keycloak_callback_view-150"><span class="linenos">150</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="keycloak_callback_view-151"><a href="#keycloak_callback_view-151"><span class="linenos">151</span></a><span class="k">def</span><span class="w"> </span><span class="nf">keycloak_callback_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="keycloak_callback_view-151"><a href="#keycloak_callback_view-151"><span class="linenos">151</span></a><span class="k">def</span> <span class="nf">keycloak_callback_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="keycloak_callback_view-152"><a href="#keycloak_callback_view-152"><span class="linenos">152</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="keycloak_callback_view-153"><a href="#keycloak_callback_view-153"><span class="linenos">153</span></a><span class="sd">    Callback del SSO de Keycloak tras autenticación exitosa.</span>
 </span><span id="keycloak_callback_view-154"><a href="#keycloak_callback_view-154"><span class="linenos">154</span></a><span class="sd">    Intercambia el código por tokens y obtiene roles y grupos directamente desde Keycloak (Fuente de Verdad Principal).</span>
@@ -1147,7 +1147,7 @@ Intercambia el código por tokens y obtiene roles y grupos directamente desde Ke
     </div>
     <a class="headerlink" href="#mfa_verify_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="mfa_verify_view-296"><a href="#mfa_verify_view-296"><span class="linenos">296</span></a><span class="nd">@ensure_csrf_cookie</span>
-</span><span id="mfa_verify_view-297"><a href="#mfa_verify_view-297"><span class="linenos">297</span></a><span class="k">def</span><span class="w"> </span><span class="nf">mfa_verify_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="mfa_verify_view-297"><a href="#mfa_verify_view-297"><span class="linenos">297</span></a><span class="k">def</span> <span class="nf">mfa_verify_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="mfa_verify_view-298"><a href="#mfa_verify_view-298"><span class="linenos">298</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="mfa_verify_view-299"><a href="#mfa_verify_view-299"><span class="linenos">299</span></a><span class="sd">    Vista para la verificación de iToken / MFA obligatorio para administrativos y corporativos.</span>
 </span><span id="mfa_verify_view-300"><a href="#mfa_verify_view-300"><span class="linenos">300</span></a><span class="sd">    </span>
@@ -1211,7 +1211,7 @@ Intercambia el código por tokens y obtiene roles y grupos directamente desde Ke
     </div>
     <a class="headerlink" href="#dashboard_redirect_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="dashboard_redirect_view-335"><a href="#dashboard_redirect_view-335"><span class="linenos">335</span></a><span class="nd">@login_required</span>
-</span><span id="dashboard_redirect_view-336"><a href="#dashboard_redirect_view-336"><span class="linenos">336</span></a><span class="k">def</span><span class="w"> </span><span class="nf">dashboard_redirect_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="dashboard_redirect_view-336"><a href="#dashboard_redirect_view-336"><span class="linenos">336</span></a><span class="k">def</span> <span class="nf">dashboard_redirect_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="dashboard_redirect_view-337"><a href="#dashboard_redirect_view-337"><span class="linenos">337</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="dashboard_redirect_view-338"><a href="#dashboard_redirect_view-338"><span class="linenos">338</span></a><span class="sd">    Redirige al usuario a su panel personalizado según su rol asignado,</span>
 </span><span id="dashboard_redirect_view-339"><a href="#dashboard_redirect_view-339"><span class="linenos">339</span></a><span class="sd">    incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas según categoría (PSE-9).</span>
@@ -1255,8 +1255,8 @@ Intercambia el código por tokens y obtiene roles y grupos directamente desde Ke
 </span><span id="dashboard_redirect_view-377"><a href="#dashboard_redirect_view-377"><span class="linenos">377</span></a>        <span class="k">else</span><span class="p">:</span>
 </span><span id="dashboard_redirect_view-378"><a href="#dashboard_redirect_view-378"><span class="linenos">378</span></a>            <span class="n">category</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">category</span>
 </span><span id="dashboard_redirect_view-379"><a href="#dashboard_redirect_view-379"><span class="linenos">379</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="dashboard_redirect_view-380"><a href="#dashboard_redirect_view-380"><span class="linenos">380</span></a>            <span class="kn">from</span><span class="w"> </span><span class="nn">tasas_cambio.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_default_benefit_rules</span>
-</span><span id="dashboard_redirect_view-381"><a href="#dashboard_redirect_view-381"><span class="linenos">381</span></a>            <span class="kn">from</span><span class="w"> </span><span class="nn">tasas_cambio.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientBenefitRule</span>
+</span><span id="dashboard_redirect_view-380"><a href="#dashboard_redirect_view-380"><span class="linenos">380</span></a>            <span class="kn">from</span> <span class="nn">tasas_cambio.views</span> <span class="kn">import</span> <span class="n">ensure_default_benefit_rules</span>
+</span><span id="dashboard_redirect_view-381"><a href="#dashboard_redirect_view-381"><span class="linenos">381</span></a>            <span class="kn">from</span> <span class="nn">tasas_cambio.models</span> <span class="kn">import</span> <span class="n">ClientBenefitRule</span>
 </span><span id="dashboard_redirect_view-382"><a href="#dashboard_redirect_view-382"><span class="linenos">382</span></a>            <span class="n">ensure_default_benefit_rules</span><span class="p">()</span>
 </span><span id="dashboard_redirect_view-383"><a href="#dashboard_redirect_view-383"><span class="linenos">383</span></a>            <span class="n">rule</span> <span class="o">=</span> <span class="n">ClientBenefitRule</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">category_code</span><span class="o">=</span><span class="n">category</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
 </span><span id="dashboard_redirect_view-384"><a href="#dashboard_redirect_view-384"><span class="linenos">384</span></a>            <span class="k">if</span> <span class="n">rule</span><span class="p">:</span>
@@ -1352,7 +1352,7 @@ incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas seg�
     </div>
     <a class="headerlink" href="#switch_to_user_mode_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="switch_to_user_mode_view-450"><a href="#switch_to_user_mode_view-450"><span class="linenos">450</span></a><span class="nd">@login_required</span>
-</span><span id="switch_to_user_mode_view-451"><a href="#switch_to_user_mode_view-451"><span class="linenos">451</span></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_user_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="switch_to_user_mode_view-451"><a href="#switch_to_user_mode_view-451"><span class="linenos">451</span></a><span class="k">def</span> <span class="nf">switch_to_user_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="switch_to_user_mode_view-452"><a href="#switch_to_user_mode_view-452"><span class="linenos">452</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="switch_to_user_mode_view-453"><a href="#switch_to_user_mode_view-453"><span class="linenos">453</span></a><span class="sd">    Permite al usuario cambiar a la interfaz de usuario regular (sin cliente).</span>
 </span><span id="switch_to_user_mode_view-454"><a href="#switch_to_user_mode_view-454"><span class="linenos">454</span></a><span class="sd">    &quot;&quot;&quot;</span>
@@ -1386,7 +1386,7 @@ incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas seg�
     </div>
     <a class="headerlink" href="#switch_to_client_mode_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="switch_to_client_mode_view-465"><a href="#switch_to_client_mode_view-465"><span class="linenos">465</span></a><span class="nd">@login_required</span>
-</span><span id="switch_to_client_mode_view-466"><a href="#switch_to_client_mode_view-466"><span class="linenos">466</span></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_client_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="switch_to_client_mode_view-466"><a href="#switch_to_client_mode_view-466"><span class="linenos">466</span></a><span class="k">def</span> <span class="nf">switch_to_client_mode_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="switch_to_client_mode_view-467"><a href="#switch_to_client_mode_view-467"><span class="linenos">467</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="switch_to_client_mode_view-468"><a href="#switch_to_client_mode_view-468"><span class="linenos">468</span></a><span class="sd">    Permite al usuario regresar a la interfaz de cliente.</span>
 </span><span id="switch_to_client_mode_view-469"><a href="#switch_to_client_mode_view-469"><span class="linenos">469</span></a><span class="sd">    &quot;&quot;&quot;</span>
@@ -1418,7 +1418,7 @@ incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas seg�
 
     </div>
     <a class="headerlink" href="#logout_view"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="logout_view-480"><a href="#logout_view-480"><span class="linenos">480</span></a><span class="k">def</span><span class="w"> </span><span class="nf">logout_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="logout_view-480"><a href="#logout_view-480"><span class="linenos">480</span></a><span class="k">def</span> <span class="nf">logout_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="logout_view-481"><a href="#logout_view-481"><span class="linenos">481</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="logout_view-482"><a href="#logout_view-482"><span class="linenos">482</span></a><span class="sd">    Cierra la sesión local en Django y la sesión SSO en Keycloak.</span>
 </span><span id="logout_view-483"><a href="#logout_view-483"><span class="linenos">483</span></a><span class="sd">    </span>
@@ -1464,7 +1464,7 @@ incluyendo la pizarra de cotizaciones en tiempo real y tasas personalizadas seg�
     </div>
     <a class="headerlink" href="#admin_roles_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="admin_roles_view-500"><a href="#admin_roles_view-500"><span class="linenos">500</span></a><span class="nd">@login_required</span>
-</span><span id="admin_roles_view-501"><a href="#admin_roles_view-501"><span class="linenos">501</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_roles_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="admin_roles_view-501"><a href="#admin_roles_view-501"><span class="linenos">501</span></a><span class="k">def</span> <span class="nf">admin_roles_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="admin_roles_view-502"><a href="#admin_roles_view-502"><span class="linenos">502</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="admin_roles_view-503"><a href="#admin_roles_view-503"><span class="linenos">503</span></a><span class="sd">    Vista de administración para gestionar la descripción y asignación granular de permisos</span>
 </span><span id="admin_roles_view-504"><a href="#admin_roles_view-504"><span class="linenos">504</span></a><span class="sd">    de los roles fijos del sistema: Admin, Analista y Cliente (PSE-26).</span>
@@ -1617,7 +1617,7 @@ de los roles fijos del sistema: Admin, Analista y Cliente (PSE-26).</p>
     </div>
     <a class="headerlink" href="#admin_audit_logs_view"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="admin_audit_logs_view-627"><a href="#admin_audit_logs_view-627"><span class="linenos">627</span></a><span class="nd">@login_required</span>
-</span><span id="admin_audit_logs_view-628"><a href="#admin_audit_logs_view-628"><span class="linenos">628</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_audit_logs_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="admin_audit_logs_view-628"><a href="#admin_audit_logs_view-628"><span class="linenos">628</span></a><span class="k">def</span> <span class="nf">admin_audit_logs_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="admin_audit_logs_view-629"><a href="#admin_audit_logs_view-629"><span class="linenos">629</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="admin_audit_logs_view-630"><a href="#admin_audit_logs_view-630"><span class="linenos">630</span></a><span class="sd">    Vista de administración para consultar el registro de auditoría del sistema (PSE-26).</span>
 </span><span id="admin_audit_logs_view-631"><a href="#admin_audit_logs_view-631"><span class="linenos">631</span></a><span class="sd">    &quot;&quot;&quot;</span>

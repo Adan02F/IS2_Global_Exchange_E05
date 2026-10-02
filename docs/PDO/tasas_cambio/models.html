@@ -64,12 +64,6 @@
 
                         </li>
                         <li>
-                                <a class="class" href="#ExchangeRate.NotUpdated">ExchangeRate.NotUpdated</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
                                 <a class="function" href="#ExchangeRate.get_next_by_last_updated">get_next_by_last_updated</a>
                         </li>
                         <li>
@@ -107,12 +101,6 @@
                         </li>
                         <li>
                                 <a class="class" href="#ExchangeRateHistory.MultipleObjectsReturned">ExchangeRateHistory.MultipleObjectsReturned</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
-                                <a class="class" href="#ExchangeRateHistory.NotUpdated">ExchangeRateHistory.NotUpdated</a>
                                         <ul class="memberlist">
                             </ul>
 
@@ -166,12 +154,6 @@
 
                         </li>
                         <li>
-                                <a class="class" href="#ClientBenefitRule.NotUpdated">ClientBenefitRule.NotUpdated</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
                                 <a class="function" href="#ClientBenefitRule.get_next_by_updated_at">get_next_by_updated_at</a>
                         </li>
                         <li>
@@ -217,6 +199,9 @@
                                 <a class="function" href="#PaymentMethod.description">description</a>
                         </li>
                         <li>
+                                <a class="function" href="#PaymentMethod.balance">balance</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#PaymentMethod.is_active">is_active</a>
                         </li>
                         <li>
@@ -235,12 +220,6 @@
 
                         </li>
                         <li>
-                                <a class="class" href="#PaymentMethod.NotUpdated">PaymentMethod.NotUpdated</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
                                 <a class="function" href="#PaymentMethod.get_method_type_display">get_method_type_display</a>
                         </li>
                         <li>
@@ -254,6 +233,12 @@
                         </li>
                         <li>
                                 <a class="function" href="#PaymentMethod.objects">objects</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PaymentMethod.currencypurchasetransaction_set">currencypurchasetransaction_set</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PaymentMethod.currencysaletransaction_set">currencysaletransaction_set</a>
                         </li>
                 </ul>
 
@@ -280,10 +265,10 @@
                         <label class="view-source-button" for="mod-models-view-source"><span>View Source</span></label>
 
                         <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="c1"># -*- coding: utf-8 -*-</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
 </span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ExchangeRate</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="k">class</span> <span class="nc">ExchangeRate</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="sd">    Modelo que representa la tasa de cambio vigente para una divisa autorizada.</span>
 </span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="sd">    </span>
@@ -302,12 +287,12 @@
 </span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a>    <span class="n">sell_rate</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;0.0000&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tasa de Venta (Gs)&quot;</span><span class="p">)</span>
 </span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a>    <span class="n">last_updated</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
 </span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a>
-</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Devuelve la representación en cadena de la tasa de cambio.&quot;&quot;&quot;</span>
 </span><span id="L-26"><a href="#L-26"><span class="linenos"> 26</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currency_code</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">) - Compra: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">buy_rate</span><span class="si">}</span><span class="s2"> | Venta: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sell_rate</span><span class="si">}</span><span class="s2">&quot;</span>
 </span><span id="L-27"><a href="#L-27"><span class="linenos"> 27</span></a>
 </span><span id="L-28"><a href="#L-28"><span class="linenos"> 28</span></a>
-</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ExchangeRateHistory</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a><span class="k">class</span> <span class="nc">ExchangeRateHistory</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="L-30"><a href="#L-30"><span class="linenos"> 30</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-31"><a href="#L-31"><span class="linenos"> 31</span></a><span class="sd">    Modelo que representa el registro histórico de las tasas de cambio de una divisa.</span>
 </span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a><span class="sd">    Se utiliza para almacenar las variaciones en el tiempo y permitir graficar su evolución.</span>
@@ -323,12 +308,12 @@
 </span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a>    <span class="n">sell_rate</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;0.0000&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tasa de Venta (Gs)&quot;</span><span class="p">)</span>
 </span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a>    <span class="n">timestamp</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Fecha y Hora del Registro&quot;</span><span class="p">)</span>
 </span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a>
-</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
 </span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Historial de Tasa de Cambio&quot;</span>
 </span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Historiales de Tasas de Cambio&quot;</span>
 </span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;timestamp&#39;</span><span class="p">]</span>
 </span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a>
-</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a><span class="sd">        Devuelve la representación en cadena del registro histórico.</span>
 </span><span id="L-53"><a href="#L-53"><span class="linenos"> 53</span></a>
@@ -338,7 +323,7 @@
 </span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currency_code</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1"> %H:%M:%S&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">) - Compra: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">buy_rate</span><span class="si">}</span><span class="s2"> | Venta: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sell_rate</span><span class="si">}</span><span class="s2">&quot;</span>
 </span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>
 </span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a>
-</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ClientBenefitRule</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="k">class</span> <span class="nc">ClientBenefitRule</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a><span class="sd">    Modelo que representa las reglas de beneficio cambiario y comisiones</span>
 </span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a><span class="sd">    parametrizables por tipo de categoría de cliente (PSE-29).</span>
@@ -358,11 +343,11 @@
 </span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Descripción / Condiciones&quot;</span><span class="p">)</span>
 </span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
 </span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>
-</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
 </span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Regla de Beneficio por Categoría&quot;</span>
 </span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Reglas de Beneficios por Categorías&quot;</span>
 </span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>
-</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a><span class="sd">        Devuelve la representación en cadena de la regla de beneficio.</span>
 </span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>
@@ -372,7 +357,7 @@
 </span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">category_name</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">benefit_percentage</span><span class="si">}</span><span class="s2">% (Mín: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_operation_amount</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> Gs)&quot;</span>
 </span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a>
 </span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>
-</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="k">class</span><span class="w"> </span><span class="nc">PaymentMethod</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="k">class</span> <span class="nc">PaymentMethod</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a><span class="sd">    Modelo que representa un método de pago parametrizable (tarjeta de crédito, débito, transferencia, billeteras electrónicas, etc.)</span>
 </span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a><span class="sd">    con sus campos específicos por tipo (PSE-25).</span>
@@ -406,22 +391,23 @@
 </span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a>    <span class="n">account_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tipo de Cuenta&quot;</span><span class="p">)</span>
 </span><span id="L-126"><a href="#L-126"><span class="linenos">126</span></a>    <span class="n">holder_name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Titular&quot;</span><span class="p">)</span>
 </span><span id="L-127"><a href="#L-127"><span class="linenos">127</span></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Descripción&quot;</span><span class="p">)</span>
-</span><span id="L-128"><a href="#L-128"><span class="linenos">128</span></a>    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Habilitado / Activo&quot;</span><span class="p">)</span>
-</span><span id="L-129"><a href="#L-129"><span class="linenos">129</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
-</span><span id="L-130"><a href="#L-130"><span class="linenos">130</span></a>
-</span><span id="L-131"><a href="#L-131"><span class="linenos">131</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="L-132"><a href="#L-132"><span class="linenos">132</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Método de Pago&quot;</span>
-</span><span id="L-133"><a href="#L-133"><span class="linenos">133</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Métodos de Pago&quot;</span>
-</span><span id="L-134"><a href="#L-134"><span class="linenos">134</span></a>
-</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-136"><a href="#L-136"><span class="linenos">136</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-137"><a href="#L-137"><span class="linenos">137</span></a><span class="sd">        Devuelve la representación en cadena del método de pago.</span>
-</span><span id="L-138"><a href="#L-138"><span class="linenos">138</span></a>
-</span><span id="L-139"><a href="#L-139"><span class="linenos">139</span></a><span class="sd">        Returns:</span>
-</span><span id="L-140"><a href="#L-140"><span class="linenos">140</span></a><span class="sd">            str: Representación descriptiva del método de pago.</span>
-</span><span id="L-141"><a href="#L-141"><span class="linenos">141</span></a><span class="sd">        &quot;&quot;&quot;</span>
-</span><span id="L-142"><a href="#L-142"><span class="linenos">142</span></a>        <span class="n">acc_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; - N°: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">account_number</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">account_number</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
-</span><span id="L-143"><a href="#L-143"><span class="linenos">143</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_method_type_display</span><span class="p">()</span><span class="si">}</span><span class="s2">)</span><span class="si">{</span><span class="n">acc_info</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;Activo&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;Inactivo&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
+</span><span id="L-128"><a href="#L-128"><span class="linenos">128</span></a>    <span class="n">balance</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;5000000000.00&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Saldo Disponible (Gs)&quot;</span><span class="p">)</span>
+</span><span id="L-129"><a href="#L-129"><span class="linenos">129</span></a>    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Habilitado / Activo&quot;</span><span class="p">)</span>
+</span><span id="L-130"><a href="#L-130"><span class="linenos">130</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
+</span><span id="L-131"><a href="#L-131"><span class="linenos">131</span></a>
+</span><span id="L-132"><a href="#L-132"><span class="linenos">132</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+</span><span id="L-133"><a href="#L-133"><span class="linenos">133</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Método de Pago&quot;</span>
+</span><span id="L-134"><a href="#L-134"><span class="linenos">134</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Métodos de Pago&quot;</span>
+</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a>
+</span><span id="L-136"><a href="#L-136"><span class="linenos">136</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="L-137"><a href="#L-137"><span class="linenos">137</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-138"><a href="#L-138"><span class="linenos">138</span></a><span class="sd">        Devuelve la representación en cadena del método de pago.</span>
+</span><span id="L-139"><a href="#L-139"><span class="linenos">139</span></a>
+</span><span id="L-140"><a href="#L-140"><span class="linenos">140</span></a><span class="sd">        Returns:</span>
+</span><span id="L-141"><a href="#L-141"><span class="linenos">141</span></a><span class="sd">            str: Representación descriptiva del método de pago.</span>
+</span><span id="L-142"><a href="#L-142"><span class="linenos">142</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="L-143"><a href="#L-143"><span class="linenos">143</span></a>        <span class="n">acc_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; - N°: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">account_number</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">account_number</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+</span><span id="L-144"><a href="#L-144"><span class="linenos">144</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_method_type_display</span><span class="p">()</span><span class="si">}</span><span class="s2">)</span><span class="si">{</span><span class="n">acc_info</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;Activo&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;Inactivo&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
 </span></pre></div>
 
 
@@ -437,7 +423,7 @@
 
     </div>
     <a class="headerlink" href="#ExchangeRate"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ExchangeRate-6"><a href="#ExchangeRate-6"><span class="linenos"> 6</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ExchangeRate</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="ExchangeRate-6"><a href="#ExchangeRate-6"><span class="linenos"> 6</span></a><span class="k">class</span> <span class="nc">ExchangeRate</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="ExchangeRate-7"><a href="#ExchangeRate-7"><span class="linenos"> 7</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="ExchangeRate-8"><a href="#ExchangeRate-8"><span class="linenos"> 8</span></a><span class="sd">    Modelo que representa la tasa de cambio vigente para una divisa autorizada.</span>
 </span><span id="ExchangeRate-9"><a href="#ExchangeRate-9"><span class="linenos"> 9</span></a><span class="sd">    </span>
@@ -456,7 +442,7 @@
 </span><span id="ExchangeRate-22"><a href="#ExchangeRate-22"><span class="linenos">22</span></a>    <span class="n">sell_rate</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;0.0000&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tasa de Venta (Gs)&quot;</span><span class="p">)</span>
 </span><span id="ExchangeRate-23"><a href="#ExchangeRate-23"><span class="linenos">23</span></a>    <span class="n">last_updated</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
 </span><span id="ExchangeRate-24"><a href="#ExchangeRate-24"><span class="linenos">24</span></a>
-</span><span id="ExchangeRate-25"><a href="#ExchangeRate-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="ExchangeRate-25"><a href="#ExchangeRate-25"><span class="linenos">25</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="ExchangeRate-26"><a href="#ExchangeRate-26"><span class="linenos">26</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Devuelve la representación en cadena de la tasa de cambio.&quot;&quot;&quot;</span>
 </span><span id="ExchangeRate-27"><a href="#ExchangeRate-27"><span class="linenos">27</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">currency_code</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">) - Compra: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">buy_rate</span><span class="si">}</span><span class="s2"> | Venta: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sell_rate</span><span class="si">}</span><span class="s2">&quot;</span>
 </span></pre></div>
@@ -634,9 +620,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ExchangeRate.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -670,21 +654,6 @@ object the first time, the query is executed.</p>
 
 
                 </section>
-                <section id="ExchangeRate.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ExchangeRate.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ExchangeRate.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
-</div>
-
-
-                </section>
                 <section id="ExchangeRateHistory">
                             <input id="ExchangeRateHistory-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr class">
@@ -696,7 +665,7 @@ object the first time, the query is executed.</p>
 
     </div>
     <a class="headerlink" href="#ExchangeRateHistory"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ExchangeRateHistory-30"><a href="#ExchangeRateHistory-30"><span class="linenos">30</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ExchangeRateHistory</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="ExchangeRateHistory-30"><a href="#ExchangeRateHistory-30"><span class="linenos">30</span></a><span class="k">class</span> <span class="nc">ExchangeRateHistory</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="ExchangeRateHistory-31"><a href="#ExchangeRateHistory-31"><span class="linenos">31</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="ExchangeRateHistory-32"><a href="#ExchangeRateHistory-32"><span class="linenos">32</span></a><span class="sd">    Modelo que representa el registro histórico de las tasas de cambio de una divisa.</span>
 </span><span id="ExchangeRateHistory-33"><a href="#ExchangeRateHistory-33"><span class="linenos">33</span></a><span class="sd">    Se utiliza para almacenar las variaciones en el tiempo y permitir graficar su evolución.</span>
@@ -712,12 +681,12 @@ object the first time, the query is executed.</p>
 </span><span id="ExchangeRateHistory-43"><a href="#ExchangeRateHistory-43"><span class="linenos">43</span></a>    <span class="n">sell_rate</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;0.0000&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tasa de Venta (Gs)&quot;</span><span class="p">)</span>
 </span><span id="ExchangeRateHistory-44"><a href="#ExchangeRateHistory-44"><span class="linenos">44</span></a>    <span class="n">timestamp</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Fecha y Hora del Registro&quot;</span><span class="p">)</span>
 </span><span id="ExchangeRateHistory-45"><a href="#ExchangeRateHistory-45"><span class="linenos">45</span></a>
-</span><span id="ExchangeRateHistory-46"><a href="#ExchangeRateHistory-46"><span class="linenos">46</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="ExchangeRateHistory-46"><a href="#ExchangeRateHistory-46"><span class="linenos">46</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
 </span><span id="ExchangeRateHistory-47"><a href="#ExchangeRateHistory-47"><span class="linenos">47</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Historial de Tasa de Cambio&quot;</span>
 </span><span id="ExchangeRateHistory-48"><a href="#ExchangeRateHistory-48"><span class="linenos">48</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Historiales de Tasas de Cambio&quot;</span>
 </span><span id="ExchangeRateHistory-49"><a href="#ExchangeRateHistory-49"><span class="linenos">49</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;timestamp&#39;</span><span class="p">]</span>
 </span><span id="ExchangeRateHistory-50"><a href="#ExchangeRateHistory-50"><span class="linenos">50</span></a>
-</span><span id="ExchangeRateHistory-51"><a href="#ExchangeRateHistory-51"><span class="linenos">51</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="ExchangeRateHistory-51"><a href="#ExchangeRateHistory-51"><span class="linenos">51</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="ExchangeRateHistory-52"><a href="#ExchangeRateHistory-52"><span class="linenos">52</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="ExchangeRateHistory-53"><a href="#ExchangeRateHistory-53"><span class="linenos">53</span></a><span class="sd">        Devuelve la representación en cadena del registro histórico.</span>
 </span><span id="ExchangeRateHistory-54"><a href="#ExchangeRateHistory-54"><span class="linenos">54</span></a>
@@ -867,9 +836,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ExchangeRateHistory.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -903,21 +870,6 @@ object the first time, the query is executed.</p>
 
 
                 </section>
-                <section id="ExchangeRateHistory.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ExchangeRateHistory.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ExchangeRateHistory.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
-</div>
-
-
-                </section>
                 <section id="ClientBenefitRule">
                             <input id="ClientBenefitRule-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr class">
@@ -929,7 +881,7 @@ object the first time, the query is executed.</p>
 
     </div>
     <a class="headerlink" href="#ClientBenefitRule"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ClientBenefitRule-61"><a href="#ClientBenefitRule-61"><span class="linenos">61</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ClientBenefitRule</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="ClientBenefitRule-61"><a href="#ClientBenefitRule-61"><span class="linenos">61</span></a><span class="k">class</span> <span class="nc">ClientBenefitRule</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="ClientBenefitRule-62"><a href="#ClientBenefitRule-62"><span class="linenos">62</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="ClientBenefitRule-63"><a href="#ClientBenefitRule-63"><span class="linenos">63</span></a><span class="sd">    Modelo que representa las reglas de beneficio cambiario y comisiones</span>
 </span><span id="ClientBenefitRule-64"><a href="#ClientBenefitRule-64"><span class="linenos">64</span></a><span class="sd">    parametrizables por tipo de categoría de cliente (PSE-29).</span>
@@ -949,11 +901,11 @@ object the first time, the query is executed.</p>
 </span><span id="ClientBenefitRule-78"><a href="#ClientBenefitRule-78"><span class="linenos">78</span></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Descripción / Condiciones&quot;</span><span class="p">)</span>
 </span><span id="ClientBenefitRule-79"><a href="#ClientBenefitRule-79"><span class="linenos">79</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
 </span><span id="ClientBenefitRule-80"><a href="#ClientBenefitRule-80"><span class="linenos">80</span></a>
-</span><span id="ClientBenefitRule-81"><a href="#ClientBenefitRule-81"><span class="linenos">81</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="ClientBenefitRule-81"><a href="#ClientBenefitRule-81"><span class="linenos">81</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
 </span><span id="ClientBenefitRule-82"><a href="#ClientBenefitRule-82"><span class="linenos">82</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Regla de Beneficio por Categoría&quot;</span>
 </span><span id="ClientBenefitRule-83"><a href="#ClientBenefitRule-83"><span class="linenos">83</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Reglas de Beneficios por Categorías&quot;</span>
 </span><span id="ClientBenefitRule-84"><a href="#ClientBenefitRule-84"><span class="linenos">84</span></a>
-</span><span id="ClientBenefitRule-85"><a href="#ClientBenefitRule-85"><span class="linenos">85</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="ClientBenefitRule-85"><a href="#ClientBenefitRule-85"><span class="linenos">85</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 </span><span id="ClientBenefitRule-86"><a href="#ClientBenefitRule-86"><span class="linenos">86</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="ClientBenefitRule-87"><a href="#ClientBenefitRule-87"><span class="linenos">87</span></a><span class="sd">        Devuelve la representación en cadena de la regla de beneficio.</span>
 </span><span id="ClientBenefitRule-88"><a href="#ClientBenefitRule-88"><span class="linenos">88</span></a>
@@ -1137,9 +1089,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ClientBenefitRule.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -1173,21 +1123,6 @@ object the first time, the query is executed.</p>
 
 
                 </section>
-                <section id="ClientBenefitRule.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ClientBenefitRule.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ClientBenefitRule.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
-</div>
-
-
-                </section>
                 <section id="PaymentMethod">
                             <input id="PaymentMethod-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr class">
@@ -1199,7 +1134,7 @@ object the first time, the query is executed.</p>
 
     </div>
     <a class="headerlink" href="#PaymentMethod"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="PaymentMethod-95"><a href="#PaymentMethod-95"><span class="linenos"> 95</span></a><span class="k">class</span><span class="w"> </span><span class="nc">PaymentMethod</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="PaymentMethod-95"><a href="#PaymentMethod-95"><span class="linenos"> 95</span></a><span class="k">class</span> <span class="nc">PaymentMethod</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
 </span><span id="PaymentMethod-96"><a href="#PaymentMethod-96"><span class="linenos"> 96</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="PaymentMethod-97"><a href="#PaymentMethod-97"><span class="linenos"> 97</span></a><span class="sd">    Modelo que representa un método de pago parametrizable (tarjeta de crédito, débito, transferencia, billeteras electrónicas, etc.)</span>
 </span><span id="PaymentMethod-98"><a href="#PaymentMethod-98"><span class="linenos"> 98</span></a><span class="sd">    con sus campos específicos por tipo (PSE-25).</span>
@@ -1233,22 +1168,23 @@ object the first time, the query is executed.</p>
 </span><span id="PaymentMethod-126"><a href="#PaymentMethod-126"><span class="linenos">126</span></a>    <span class="n">account_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Tipo de Cuenta&quot;</span><span class="p">)</span>
 </span><span id="PaymentMethod-127"><a href="#PaymentMethod-127"><span class="linenos">127</span></a>    <span class="n">holder_name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Titular&quot;</span><span class="p">)</span>
 </span><span id="PaymentMethod-128"><a href="#PaymentMethod-128"><span class="linenos">128</span></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Descripción&quot;</span><span class="p">)</span>
-</span><span id="PaymentMethod-129"><a href="#PaymentMethod-129"><span class="linenos">129</span></a>    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Habilitado / Activo&quot;</span><span class="p">)</span>
-</span><span id="PaymentMethod-130"><a href="#PaymentMethod-130"><span class="linenos">130</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
-</span><span id="PaymentMethod-131"><a href="#PaymentMethod-131"><span class="linenos">131</span></a>
-</span><span id="PaymentMethod-132"><a href="#PaymentMethod-132"><span class="linenos">132</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="PaymentMethod-133"><a href="#PaymentMethod-133"><span class="linenos">133</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Método de Pago&quot;</span>
-</span><span id="PaymentMethod-134"><a href="#PaymentMethod-134"><span class="linenos">134</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Métodos de Pago&quot;</span>
-</span><span id="PaymentMethod-135"><a href="#PaymentMethod-135"><span class="linenos">135</span></a>
-</span><span id="PaymentMethod-136"><a href="#PaymentMethod-136"><span class="linenos">136</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="PaymentMethod-137"><a href="#PaymentMethod-137"><span class="linenos">137</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="PaymentMethod-138"><a href="#PaymentMethod-138"><span class="linenos">138</span></a><span class="sd">        Devuelve la representación en cadena del método de pago.</span>
-</span><span id="PaymentMethod-139"><a href="#PaymentMethod-139"><span class="linenos">139</span></a>
-</span><span id="PaymentMethod-140"><a href="#PaymentMethod-140"><span class="linenos">140</span></a><span class="sd">        Returns:</span>
-</span><span id="PaymentMethod-141"><a href="#PaymentMethod-141"><span class="linenos">141</span></a><span class="sd">            str: Representación descriptiva del método de pago.</span>
-</span><span id="PaymentMethod-142"><a href="#PaymentMethod-142"><span class="linenos">142</span></a><span class="sd">        &quot;&quot;&quot;</span>
-</span><span id="PaymentMethod-143"><a href="#PaymentMethod-143"><span class="linenos">143</span></a>        <span class="n">acc_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; - N°: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">account_number</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">account_number</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
-</span><span id="PaymentMethod-144"><a href="#PaymentMethod-144"><span class="linenos">144</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_method_type_display</span><span class="p">()</span><span class="si">}</span><span class="s2">)</span><span class="si">{</span><span class="n">acc_info</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;Activo&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;Inactivo&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
+</span><span id="PaymentMethod-129"><a href="#PaymentMethod-129"><span class="linenos">129</span></a>    <span class="n">balance</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DecimalField</span><span class="p">(</span><span class="n">max_digits</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">decimal_places</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s1">&#39;5000000000.00&#39;</span><span class="p">),</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Saldo Disponible (Gs)&quot;</span><span class="p">)</span>
+</span><span id="PaymentMethod-130"><a href="#PaymentMethod-130"><span class="linenos">130</span></a>    <span class="n">is_active</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Habilitado / Activo&quot;</span><span class="p">)</span>
+</span><span id="PaymentMethod-131"><a href="#PaymentMethod-131"><span class="linenos">131</span></a>    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;Última Actualización&quot;</span><span class="p">)</span>
+</span><span id="PaymentMethod-132"><a href="#PaymentMethod-132"><span class="linenos">132</span></a>
+</span><span id="PaymentMethod-133"><a href="#PaymentMethod-133"><span class="linenos">133</span></a>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+</span><span id="PaymentMethod-134"><a href="#PaymentMethod-134"><span class="linenos">134</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">&quot;Método de Pago&quot;</span>
+</span><span id="PaymentMethod-135"><a href="#PaymentMethod-135"><span class="linenos">135</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">&quot;Métodos de Pago&quot;</span>
+</span><span id="PaymentMethod-136"><a href="#PaymentMethod-136"><span class="linenos">136</span></a>
+</span><span id="PaymentMethod-137"><a href="#PaymentMethod-137"><span class="linenos">137</span></a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="PaymentMethod-138"><a href="#PaymentMethod-138"><span class="linenos">138</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="PaymentMethod-139"><a href="#PaymentMethod-139"><span class="linenos">139</span></a><span class="sd">        Devuelve la representación en cadena del método de pago.</span>
+</span><span id="PaymentMethod-140"><a href="#PaymentMethod-140"><span class="linenos">140</span></a>
+</span><span id="PaymentMethod-141"><a href="#PaymentMethod-141"><span class="linenos">141</span></a><span class="sd">        Returns:</span>
+</span><span id="PaymentMethod-142"><a href="#PaymentMethod-142"><span class="linenos">142</span></a><span class="sd">            str: Representación descriptiva del método de pago.</span>
+</span><span id="PaymentMethod-143"><a href="#PaymentMethod-143"><span class="linenos">143</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="PaymentMethod-144"><a href="#PaymentMethod-144"><span class="linenos">144</span></a>        <span class="n">acc_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; - N°: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">account_number</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">account_number</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+</span><span id="PaymentMethod-145"><a href="#PaymentMethod-145"><span class="linenos">145</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_method_type_display</span><span class="p">()</span><span class="si">}</span><span class="s2">)</span><span class="si">{</span><span class="n">acc_info</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;Activo&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;Inactivo&#39;</span><span class="si">}</span><span class="s2">)&quot;</span>
 </span></pre></div>
 
 
@@ -1410,6 +1346,22 @@ object the first time, the query is executed.</p>
 
 
                             </div>
+                            <div id="PaymentMethod.balance" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">balance</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PaymentMethod.balance"></a>
+    
+            <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
+object the first time, the query is executed.</p>
+</div>
+
+
+                            </div>
                             <div id="PaymentMethod.is_active" class="classattr">
                                 <div class="attr function">
             
@@ -1525,7 +1477,55 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#PaymentMethod.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
+    
+
+                            </div>
+                            <div id="PaymentMethod.currencypurchasetransaction_set" class="classattr">
+                                <div class="attr variable">
+            <span class="name">currencypurchasetransaction_set</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PaymentMethod.currencypurchasetransaction_set"></a>
+    
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_forward_many_to_many_manager()</code> defined below.</p>
+</div>
+
+
+                            </div>
+                            <div id="PaymentMethod.currencysaletransaction_set" class="classattr">
+                                <div class="attr variable">
+            <span class="name">currencysaletransaction_set</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PaymentMethod.currencysaletransaction_set"></a>
+    
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_forward_many_to_many_manager()</code> defined below.</p>
 </div>
 
 
@@ -1557,21 +1557,6 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#PaymentMethod.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="PaymentMethod.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">PaymentMethod.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#PaymentMethod.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 
