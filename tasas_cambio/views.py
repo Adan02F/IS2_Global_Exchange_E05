@@ -7,7 +7,8 @@ from django.contrib.auth.decorators import login_required
 from decimal import Decimal
 from datetime import timedelta
 import random
-from authentication.models import UserProfile
+import time
+from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion
 from .models import ExchangeRate, ExchangeRateHistory, ClientBenefitRule, PaymentMethod
 
 def ensure_default_benefit_rules():
@@ -29,7 +30,7 @@ def ensure_default_benefit_rules():
             'category_name': 'VIP',
             'min_operation_amount': Decimal('0.00'),
             'benefit_percentage': Decimal('2.00'),
-            'description': 'Clientes con operaciones superiores a 50.000.000 PYG (2% de beneficio en compra de divisas).'
+            'description': 'Clientes con operaciones superiores a 50.000.000 PYG (2% de beneficio en operaciones).'
         }
     )
     ClientBenefitRule.objects.get_or_create(
@@ -38,7 +39,7 @@ def ensure_default_benefit_rules():
             'category_name': 'Corporativo',
             'min_operation_amount': Decimal('0.00'),
             'benefit_percentage': Decimal('4.00'),
-            'description': 'Clientes con operaciones superiores a 100.000.000 PYG (4% de beneficio en compra de divisas).'
+            'description': 'Clientes con operaciones superiores a 100.000.000 PYG (4% de beneficio en operaciones).'
         }
     )
 
@@ -128,6 +129,91 @@ def public_rates_view(request):
     return render(request, 'tasas_cambio/rates_board.html', context)
 
 
+def get_active_client(user, request=None):
+    """
+    Retorna la instancia del Cliente activo en la sesión o relación del usuario (PSE-13 / Multi-cliente).
+    """
+    if not user or not user.is_authenticated:
+        return None
+    if request and request.session.get('user_mode', False):
+        return None
+    
+    active_client = None
+    active_client_id = request.session.get('active_client_id') if request else None
+
+    if active_client_id:
+        active_client = Cliente.objects.filter(id=active_client_id).first()
+        if not active_client and str(active_client_id).isdigit():
+            active_client = Cliente.objects.filter(id=int(active_client_id)).first()
+
+    if not active_client:
+        try:
+            profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
+            if profile and profile.keycloak_id:
+                rel = UsuarioClienteRelacion.objects.filter(keycloak_user_id=profile.keycloak_id).select_related('cliente').first()
+                if rel:
+                    active_client = rel.cliente
+                    if request:
+                        request.session['active_client_id'] = str(active_client.id)
+        except Exception:
+            pass
+
+    return active_client
+
+
+def is_user_analyst(user, request=None):
+    """
+    Determina si el usuario actual o el rol activo en el cliente es Analista (prohibido realizar operaciones de compra).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    try:
+        profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
+        if profile and profile.role and 'analista' in profile.role.name.lower():
+            return True
+        
+        active_client = get_active_client(user, request)
+        if active_client and profile and profile.keycloak_id:
+            rel = UsuarioClienteRelacion.objects.filter(
+                models.Q(keycloak_user_id=profile.keycloak_id) | models.Q(keycloak_user_id=str(user.id)),
+                cliente=active_client
+            ).first()
+            if rel and rel.rol_en_cliente.upper() == 'ANALISTA':
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def get_user_effective_category(user, request=None):
+    """
+    Determina la categoría efectiva del cliente con el que se está operando,
+    considerando si el usuario está en 'modo usuario' (user_mode=True), en cuyo caso
+    opera como usuario regular sin beneficios de cliente.
+    Si está en modo cliente, considera el cliente activo en sesión (active_client_id),
+    las relaciones en UsuarioClienteRelacion, o el perfil del usuario.
+    """
+    cat_code = 'MINORISTA'
+    if not user or not user.is_authenticated:
+        return cat_code
+
+    try:
+        if request and request.session.get('user_mode', False):
+            return 'MINORISTA'
+
+        active_client = get_active_client(user, request=request)
+        if active_client:
+            return active_client.categoria
+
+        profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
+        if profile and profile.category:
+            return profile.category
+    except Exception:
+        pass
+
+    return cat_code
+
+
 class SimuladorConversionService:
     """
     Servicio de dominio para la simulación de conversión de divisas (PSE-11 / PSE-29).
@@ -135,7 +221,7 @@ class SimuladorConversionService:
     """
 
     @staticmethod
-    def simular(from_currency, to_currency, amount, user=None):
+    def simular(from_currency, to_currency, amount, user=None, request=None):
         """
         Simula una conversión monetaria entre dos divisas aplicando reglas de beneficio parametrizables.
 
@@ -170,28 +256,31 @@ class SimuladorConversionService:
 
         if user and user.is_authenticated:
             try:
-                profile = user.profile
-                cat_code = profile.category
+                cat_code = get_user_effective_category(user, request=request)
                 rule = ClientBenefitRule.objects.filter(category_code=cat_code).first()
                 if rule:
                     category_name = rule.category_name
                     min_operation_amount = rule.min_operation_amount
 
-                    # Evaluar equivalencia en PYG para umbral transaccional
-                    eval_amount = amount_dec
-                    if from_currency != 'PYG':
-                        try:
-                            r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                            eval_amount = amount_dec * r_from.buy_rate
-                        except Exception:
-                            pass
-
-                    if eval_amount >= min_operation_amount:
+                    if cat_code != 'MINORISTA':
                         benefit_percentage = rule.benefit_percentage
                         threshold_met = True
                     else:
-                        benefit_percentage = Decimal('0.00')
-                        threshold_met = False
+                        # Evaluar equivalencia en PYG para umbral transaccional
+                        eval_amount = amount_dec
+                        if from_currency != 'PYG':
+                            try:
+                                r_from = ExchangeRate.objects.get(currency_code=from_currency)
+                                eval_amount = amount_dec * r_from.buy_rate
+                            except Exception:
+                                pass
+
+                        if eval_amount >= min_operation_amount:
+                            benefit_percentage = rule.benefit_percentage
+                            threshold_met = True
+                        else:
+                            benefit_percentage = Decimal('0.00')
+                            threshold_met = False
             except Exception:
                 pass
 
@@ -253,7 +342,7 @@ class SimuladorConversionService:
                 raise ValidationError(f"La tasa de compra para {from_currency} no se encuentra disponible.")
 
             if benefit_percentage > 0:
-                custom_rate = (standard_rate / factor).quantize(Decimal('0.0001'))
+                custom_rate = (standard_rate * (Decimal('1.00') + (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
             else:
                 custom_rate = standard_rate
 
@@ -291,8 +380,8 @@ class SimuladorConversionService:
                 raise ValidationError("Tasas de cambio inválidas para la conversión cruzada.")
 
             if benefit_percentage > 0:
-                custom_buy = (std_buy / factor).quantize(Decimal('0.0001'))
-                custom_sell = (std_sell * factor).quantize(Decimal('0.0001'))
+                custom_buy = (std_buy * (Decimal('1.00') + (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
+                custom_sell = (std_sell * (Decimal('1.00') - (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
             else:
                 custom_buy = std_buy
                 custom_sell = std_sell
@@ -356,7 +445,8 @@ def currency_simulator_view(request):
                 from_currency=from_currency,
                 to_currency=to_currency,
                 amount=amount_str,
-                user=request.user
+                user=request.user,
+                request=request
             )
         except ValidationError as e:
             error_message = e.messages[0] if hasattr(e, 'messages') else str(e)
@@ -369,7 +459,8 @@ def currency_simulator_view(request):
                     from_currency=from_currency,
                     to_currency=to_currency,
                     amount=amount_str,
-                    user=request.user
+                    user=request.user,
+                    request=request
                 )
             except ValidationError as e:
                 error_message = e.messages[0] if hasattr(e, 'messages') else str(e)
@@ -380,13 +471,16 @@ def currency_simulator_view(request):
     user_profile = None
     benefit_percentage = Decimal('0.00')
     category_display = 'Invitado / Minorista'
+    cat_code = get_user_effective_category(request.user, request=request)
     if request.user.is_authenticated:
         try:
             user_profile = request.user.profile
-            rule = ClientBenefitRule.objects.filter(category_code=user_profile.category).first()
+            rule = ClientBenefitRule.objects.filter(category_code=cat_code).first()
             if rule:
                 benefit_percentage = rule.benefit_percentage
                 category_display = rule.category_name
+            else:
+                category_display = cat_code
         except Exception:
             pass
 
@@ -605,29 +699,58 @@ def client_benefit_config_view(request):
 
 def ensure_default_payment_methods():
     """
-    Asegura que existan los métodos de pago predeterminados en la base de datos (PSE-25).
+    Asegura que existan los métodos de pago predeterminados en la base de datos (PSE-25),
+    incluyendo tarjetas de crédito y débito, transferencias y billeteras con campos de número de cuenta y banco.
     """
     PaymentMethod.objects.get_or_create(
-        code='TRANSFERENCIA',
+        code='TARJETA_CREDITO',
         defaults={
-            'name': 'Transferencia Bancaria',
-            'description': 'Transferencia directa entre cuentas bancarias autorizadas.',
+            'name': 'Tarjeta de Crédito Visa / Mastercard',
+            'method_type': 'TARJETA_CREDITO',
+            'account_number': '4532-xxxx-xxxx-8890',
+            'bank_name': 'Banco Regional / Processed by Bancard',
+            'account_type': 'Crédito',
+            'holder_name': 'Global Exchange S.A.',
+            'description': 'Cobro automatizado mediante pasarela de tarjeta de crédito.',
             'is_active': True
         }
     )
     PaymentMethod.objects.get_or_create(
-        code='TARJETA',
+        code='TARJETA_DEBITO',
         defaults={
-            'name': 'Tarjeta de Crédito / Débito',
-            'description': 'Cobro mediante pasarela de tarjetas Visa, Mastercard, etc.',
+            'name': 'Tarjeta de Débito Bancaria',
+            'method_type': 'TARJETA_DEBITO',
+            'account_number': '5412-xxxx-xxxx-3321',
+            'bank_name': 'Red Bancard / Itaú',
+            'account_type': 'Débito',
+            'holder_name': 'Global Exchange S.A.',
+            'description': 'Cobro inmediato con tarjeta de débito en POS o pasarela.',
+            'is_active': True
+        }
+    )
+    PaymentMethod.objects.get_or_create(
+        code='TRANSFERENCIA',
+        defaults={
+            'name': 'Transferencia Bancaria',
+            'method_type': 'TRANSFERENCIA',
+            'account_number': '1029384756',
+            'bank_name': 'Banco Itaú Paraguay',
+            'account_type': 'Cuenta Corriente',
+            'holder_name': 'Global Exchange S.A.',
+            'description': 'Transferencia directa entre cuentas bancarias autorizadas.',
             'is_active': True
         }
     )
     PaymentMethod.objects.get_or_create(
         code='BILLETERA',
         defaults={
-            'name': 'Billeteras Electrónicas',
-            'description': 'Pagos a través de billeteras móviles (Zimple, Tigo Money, etc.).',
+            'name': 'Billeteras Electrónicas (Zimple / Tigo Money)',
+            'method_type': 'BILLETERA',
+            'account_number': '0981-555-444',
+            'bank_name': 'Telecel / Bancard',
+            'account_type': 'Billetera Móvil',
+            'holder_name': 'Global Exchange S.A.',
+            'description': 'Pagos a través de billeteras móviles.',
             'is_active': True
         }
     )
@@ -635,6 +758,11 @@ def ensure_default_payment_methods():
         code='EFECTIVO',
         defaults={
             'name': 'Efectivo en Sucursal',
+            'method_type': 'EFECTIVO',
+            'account_number': 'Caja Central N° 1',
+            'bank_name': 'Ventanilla Global Exchange',
+            'account_type': 'Efectivo',
+            'holder_name': 'Caja General',
             'description': 'Pago presencial en ventanilla de caja.',
             'is_active': True
         }
@@ -644,7 +772,8 @@ def ensure_default_payment_methods():
 @login_required
 def currency_payment_config_view(request):
     """
-    Vista de administración con funcionalidad CRUD completa para Divisas y Métodos de Pago (PSE-25).
+    Vista de administración con funcionalidad CRUD completa para Divisas y Métodos de Pago (PSE-25),
+    incluyendo campos específicos por tipo (número de cuenta, tarjeta, banco, titular).
     
     Args:
         request (HttpRequest): Solicitud HTTP del administrador.
@@ -711,6 +840,11 @@ def currency_payment_config_view(request):
             elif action == 'add_payment_method':
                 code = request.POST.get('pm_code', '').strip().upper()
                 name = request.POST.get('pm_name', '').strip()
+                method_type = request.POST.get('pm_method_type', 'TRANSFERENCIA').strip()
+                account_number = request.POST.get('pm_account_number', '').strip()
+                bank_name = request.POST.get('pm_bank_name', '').strip()
+                account_type = request.POST.get('pm_account_type', '').strip()
+                holder_name = request.POST.get('pm_holder_name', '').strip()
                 description = request.POST.get('pm_description', '').strip()
                 is_active = request.POST.get('pm_is_active') == 'on'
 
@@ -721,6 +855,11 @@ def currency_payment_config_view(request):
                     code=code,
                     defaults={
                         'name': name,
+                        'method_type': method_type,
+                        'account_number': account_number,
+                        'bank_name': bank_name,
+                        'account_type': account_type,
+                        'holder_name': holder_name,
                         'description': description,
                         'is_active': is_active
                     }
@@ -754,7 +893,7 @@ def currency_payment_config_view(request):
         'error_message': error_message,
         'now': timezone.now(),
     }
-    return render(request, 'tasas_cambio/currency_payment_config.html', context)
+    return render(request, 'monitoreo_corporativo/currency_payment_config.html', context)
 
 
 @login_required
@@ -884,3 +1023,5 @@ def rates_manager_view(request):
         'now': timezone.now(),
     }
     return render(request, 'tasas_cambio/rates_manager.html', context)
+
+

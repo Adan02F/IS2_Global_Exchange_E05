@@ -36,7 +36,23 @@
                         </select>
                     </div>
                     {% endif %}
-                    {% if corporate_groups %}
+                    {% if clientes_asociados %}
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-slate-300">Cliente:</span>
+                        <select onchange="window.location.href=this.value" class="bg-slate-800 text-white text-xs px-2 py-1 rounded border border-slate-700">
+                            {% for c in clientes_asociados %}
+                            <option value="{% url 'switch_client' c.id %}" {% if active_client and active_client.id == c.id %}selected{% endif %}>
+                                {{ c.nombre_o_razon_social }} 
+                                {% if c.rol_display %}
+                                    ({{ c.rol_display }})
+                                {% else %}
+                                    ({{ c.categoria }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% elif corporate_groups %}
                     <div class="flex items-center space-x-2">
                         <span class="text-xs text-slate-300">Cliente/Grupo:</span>
                         <select onchange="window.location.href=this.value" class="bg-slate-800 text-white text-xs px-2 py-1 rounded border border-slate-700">
@@ -64,17 +80,7 @@
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
-        {% if not has_own_group %}
-        <div class="mb-8 bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-                <h3 class="text-xl font-bold mb-1">¿Deseas operar como Cliente en Global Exchange?</h3>
-                <p class="text-sm text-blue-200">Actualmente estás operando como usuario regular sin grupo de cliente asignado. Solicita tu registro de cliente (Persona Física o Jurídica).</p>
-            </div>
-            <a href="{% url 'register' %}" class="whitespace-nowrap bg-white text-blue-900 hover:bg-blue-50 font-semibold px-5 py-2.5 rounded-xl shadow transition duration-200 text-sm">
-                Solicitar ser Cliente &rarr;
-            </a>
-        </div>
-        {% endif %}
+
 
         {% if active_group and is_group_owner %}
         <div class="mb-8 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
@@ -104,7 +110,22 @@
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-slate-900">Panel de Cliente Personal</h1>
+                <h1 class="text-3xl font-bold text-slate-900">
+                    Panel de Cliente: 
+                    {% if active_client %}
+                        <span class="text-blue-800">{{ active_client.nombre_o_razon_social }}</span>
+                        {% if client_role_display %}
+                            <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-semibold ml-2 inline-block align-middle">{{ client_role_display }}</span>
+                        {% endif %}
+                    {% elif active_group %}
+                        <span class="text-blue-800">{{ active_group.group_name }}</span>
+                        {% if client_role_display %}
+                            <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-semibold ml-2 inline-block align-middle">{{ client_role_display }}</span>
+                        {% endif %}
+                    {% else %}
+                        Personal
+                    {% endif %}
+                </h1>
                 <p class="text-slate-600 mt-1">Consulte cotizaciones y realice operaciones de cambio de divisas.</p>
             </div>
             
@@ -129,7 +150,19 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
+            {% if client_role_display|lower != 'analista' and profile.role.name|lower != 'analista' %}
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'procesamiento_operaciones:currency_purchase' %}'">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Comprar Divisas</h3>
+                <p class="text-sm text-slate-600 mb-4">Realice la compra digital de divisas con selección de cuentas, método de pago y descuentos automáticos.</p>
+                <a href="{% url 'procesamiento_operaciones:currency_purchase' %}" class="text-blue-800 font-semibold text-sm hover:underline">Iniciar Compra &rarr;</a>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'procesamiento_operaciones:currency_sale' %}'">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Vender Divisas</h3>
+                <p class="text-sm text-slate-600 mb-4">Venda sus divisas con aplicación de la tasa de compra vigente y acreditación en cuenta vinculada.</p>
+                <a href="{% url 'procesamiento_operaciones:currency_sale' %}" class="text-blue-800 font-semibold text-sm hover:underline">Iniciar Venta &rarr;</a>
+            </div>
+            {% endif %}
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'tasas_cambio:simulator' %}'">
                 <h3 class="text-lg font-semibold text-slate-800 mb-2">Simular Operación</h3>
                 <p class="text-sm text-slate-600 mb-4">Calcule montos en Guaraníes, Dólares, Euros y otras divisas con su tasa personalizada.</p>
@@ -137,9 +170,18 @@
             </div>
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 class="text-lg font-semibold text-slate-800 mb-2">Mis Transacciones</h3>
-                <p class="text-sm text-slate-600 mb-4">Volumen Transaccional Acumulado: <strong class="font-mono text-slate-900">₲ {{ profile.transaction_volume|floatformat:0 }}</strong></p>
-                <a href="#" class="text-blue-800 font-semibold text-sm hover:underline">Ver Historial &rarr;</a>
+                <p class="text-sm text-slate-600 mb-4">Volumen Transaccional Acumulado: <strong class="font-mono text-slate-900">₲ {{ active_client.transaction_volume|default:profile.transaction_volume|floatformat:0 }}</strong></p>
+                <div class="flex flex-col space-y-1 text-sm">
+                    <a href="{% url 'procesamiento_operaciones:currency_transactions_history' %}" class="text-blue-800 font-semibold hover:underline">Ver Historial Unificado &rarr;</a>
+                </div>
             </div>
+            {% if client_role_display|lower == 'cliente' or is_group_owner or profile.is_corporate or is_admin %}
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-blue-200 bg-blue-50/40 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'client_acreditation_methods' %}'">
+                <h3 class="text-lg font-semibold text-blue-900 mb-2">Medios de Acreditación</h3>
+                <p class="text-sm text-slate-600 mb-4">Gestione sus cuentas bancarias, billeteras electrónicas y alias predeterminados para recibir fondos.</p>
+                <a href="{% url 'client_acreditation_methods' %}" class="text-blue-800 font-semibold text-sm hover:underline">Gestionar Cuentas &rarr;</a>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Banner to Visualizar Tasas / Gráfico de Evolución (Image 2 format) -->
