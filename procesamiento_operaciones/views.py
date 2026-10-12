@@ -7,6 +7,8 @@ from django.http import HttpResponse
 from decimal import Decimal
 import time
 import csv
+import uuid
+import json
 from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion, ClientAccreditationMethod
 from tasas_cambio.models import ExchangeRate, ClientBenefitRule, PaymentMethod
 from tasas_cambio.views import (
@@ -14,17 +16,144 @@ from tasas_cambio.views import (
     SimuladorConversionService, get_user_effective_category, get_active_client
 )
 from .models import CurrencyPurchaseTransaction, CurrencySaleTransaction
+from integracion.services import PaymentGatewaySimulator
+from integracion.gateways import PaymentGatewayFactory, StripeGateway, BancardGateway, TigoMoneyGateway, SIPAPGateway
+from integracion.models import PaymentGatewayLog
+from caja.models import TurnoCaja
 
 
-def _resolve_client_and_methods(user, request, origin_method_id, destination_method_id):
-    """Resuelve el cliente activo y sus medios de acreditación de origen y destino."""
+def _get_active_turn(user):
+    """Retorna el turno de caja abierto para el usuario o su caja asignada."""
+    if not user or not user.is_authenticated:
+        return None
+    turn = TurnoCaja.objects.filter(cajero=user, estado='ABIERTO').first()
+    if not turn and hasattr(user, 'cajas_asignadas'):
+        cajas = user.cajas_asignadas.all()
+        turn = TurnoCaja.objects.filter(caja__in=cajas, estado='ABIERTO').first()
+    return turn
+
+
+def _process_financial_instrument(payment_method, total_amount, currency='PYG', origin_method=None, initial_status='SUCCESS'):
+    """
+    Valida campos requeridos y enruta el procesamiento al servicio de pasarela correspondiente según el tipo
+    (SIPAP, Bancard, Tigo Money, Stripe), registrando el log inmutable en la base de datos (PaymentGatewayLog).
+    """
+    if not payment_method:
+        res = SIPAPGateway().process_payment(amount=total_amount, currency=currency, source_account=getattr(origin_method, 'numero_cuenta', 'GX-MAIN'), destination_account='GX-DEFAULT')
+        ref = res.get('reference_code', f"SIPAP-{uuid.uuid4().hex.upper()}")
+        log_status = initial_status
+        PaymentGatewayLog.objects.update_or_create(
+            reference_code=ref,
+            defaults={
+                'gateway_name': 'SIPAP',
+                'transaction_type': 'PAYMENT',
+                'amount': total_amount,
+                'currency': currency,
+                'status': log_status,
+                'request_payload': json.dumps({'amount': str(total_amount)}),
+                'response_payload': json.dumps(res),
+                'error_message': ''
+            }
+        )
+        return 'CUENTA_BANCARIA_LOCAL', ref, log_status, log_status
+
+    pm_type = getattr(payment_method, 'method_type', '') or getattr(payment_method, 'tipo_medio', '') or 'CUENTA_BANCARIA_LOCAL'
+    gateway_name = 'SIPAP'
+    if pm_type in ['TARJETA_CREDITO']:
+        gateway_name = 'STRIPE'
+    elif pm_type in ['TARJETA_DEBITO']:
+        gateway_name = 'BANCARD'
+    elif pm_type in ['BILLETERA_ELECTRONICA', 'BILLETERA']:
+        gateway_name = 'TIGO_MONEY'
+    else:
+        code_str = getattr(payment_method, 'code', '') or getattr(payment_method, 'entidad_financiera', '') or 'SIPAP'
+        if 'BANCARD' in code_str.upper():
+            gateway_name = 'BANCARD'
+        elif 'TIGO' in code_str.upper():
+            gateway_name = 'TIGO_MONEY'
+        elif 'STRIPE' in code_str.upper():
+            gateway_name = 'STRIPE'
+        else:
+            gateway_name = 'SIPAP'
+
+    gateway_ref = f"GX-{uuid.uuid4().hex.upper()}"
+    gateway_status = initial_status
+    tx_status = initial_status
+
+    if pm_type == 'CUENTA_BANCARIA_EXTRANJERA':
+        swift = getattr(payment_method, 'swift_iban', '') or getattr(payment_method, 'account_number', '') or getattr(payment_method, 'alias_transferencia', '')
+        if not swift:
+            raise ValidationError("La cuenta bancaria extranjera requiere código SWIFT / IBAN.")
+        gateway_ref = f"SWIFT-{uuid.uuid4().hex.upper()}"
+        gateway_status = 'PENDING'
+        tx_status = 'PENDING'
+        PaymentGatewayLog.objects.update_or_create(
+            reference_code=gateway_ref,
+            defaults={
+                'gateway_name': 'SIPAP',
+                'transaction_type': 'TRANSFER',
+                'amount': total_amount,
+                'currency': currency,
+                'status': 'PENDING',
+                'request_payload': json.dumps({'swift': swift}),
+                'response_payload': json.dumps({'status': 'PENDING'}),
+                'error_message': ''
+            }
+        )
+    else:
+        card_num = getattr(payment_method, 'account_number', '') or getattr(payment_method, 'numero_tarjeta', '') or '1234'
+        phone = getattr(payment_method, 'account_number', '') or getattr(payment_method, 'numero_telefono', '') or '0981000000'
+        acc_num = getattr(payment_method, 'account_number', '') or getattr(payment_method, 'swift_iban', '') or 'ACC-001'
+
+        res = PaymentGatewaySimulator.process_gateway_payment(
+            gateway_name=gateway_name,
+            amount=total_amount,
+            currency=currency,
+            card_number=card_num,
+            phone_number=phone,
+            source_account=getattr(origin_method, 'numero_cuenta', 'GX-MAIN'),
+            destination_account=acc_num
+        )
+        gateway_ref = res.get('reference_code', gateway_ref)
+        if initial_status == 'PENDING':
+            gateway_status = 'PENDING'
+            tx_status = 'PENDING'
+        else:
+            gateway_status = res.get('status', 'SUCCESS')
+            if gateway_status not in ['SUCCESS', 'APPROVED']:
+                tx_status = 'FAILED'
+            else:
+                tx_status = 'SUCCESS'
+
+        PaymentGatewayLog.objects.update_or_create(
+            reference_code=gateway_ref,
+            defaults={
+                'gateway_name': gateway_name,
+                'transaction_type': 'PAYMENT',
+                'amount': total_amount,
+                'currency': currency,
+                'status': gateway_status,
+                'request_payload': json.dumps({'amount': str(total_amount)}),
+                'response_payload': json.dumps(res),
+                'error_message': ''
+            }
+        )
+
+    return pm_type, gateway_ref, gateway_status, tx_status
+
+
+def _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=None, to_currency=None):
+    """Resuelve el cliente activo y sus medios de acreditación de origen y destino según divisa."""
     cliente = get_active_client(user, request)
     if not cliente and user and user.is_authenticated:
         profile = getattr(user, 'profile', None)
-        if profile and profile.keycloak_id:
-            rel = UsuarioClienteRelacion.objects.filter(keycloak_user_id=profile.keycloak_id).select_related('cliente').first()
-            if rel:
-                cliente = rel.cliente
+        kc_id = profile.keycloak_id if profile else None
+        q_filter = models.Q(keycloak_user_id=str(user.id)) | models.Q(keycloak_user_id=user.username)
+        if kc_id:
+            q_filter |= models.Q(keycloak_user_id=kc_id)
+        rel = UsuarioClienteRelacion.objects.filter(q_filter).select_related('cliente').first()
+        if rel:
+            cliente = rel.cliente
 
     if not cliente:
         raise ValidationError("Debe seleccionar un cliente activo para realizar la operación.")
@@ -33,13 +162,17 @@ def _resolve_client_and_methods(user, request, origin_method_id, destination_met
     destination_method = None
     if origin_method_id:
         origin_method = ClientAccreditationMethod.objects.filter(id=origin_method_id, cliente=cliente).first()
+    if not origin_method and from_currency:
+        origin_method = ClientAccreditationMethod.objects.filter(cliente=cliente, moneda__iexact=from_currency).first()
     if not origin_method:
         origin_method = ClientAccreditationMethod.objects.filter(cliente=cliente).first()
 
     if destination_method_id:
         destination_method = ClientAccreditationMethod.objects.filter(id=destination_method_id, cliente=cliente).first()
+    if not destination_method and to_currency:
+        destination_method = ClientAccreditationMethod.objects.filter(cliente=cliente, moneda__iexact=to_currency).first()
     if not destination_method:
-        destination_method = ClientAccreditationMethod.objects.filter(cliente=cliente).last() or origin_method
+        destination_method = ClientAccreditationMethod.objects.filter(cliente=cliente).exclude(id=getattr(origin_method, 'id', None)).first() or origin_method
 
     if not origin_method or not destination_method:
         origin_method = ClientAccreditationMethod.objects.create(
@@ -49,6 +182,7 @@ def _resolve_client_and_methods(user, request, origin_method_id, destination_met
             entidad_financiera='Banco Global',
             numero_cuenta='123456789',
             tipo_cuenta='AHORRO',
+            moneda=from_currency if from_currency else 'PYG',
             titularidad=cliente.nombre_o_razon_social,
             estado='VERIFICADO',
             es_predeterminado=True
@@ -56,6 +190,17 @@ def _resolve_client_and_methods(user, request, origin_method_id, destination_met
         destination_method = origin_method
 
     return cliente, origin_method, destination_method
+
+
+def _convert_amount(amount, cur_from, cur_to):
+    """Convierte un monto entre dos divisas utilizando el servicio de simulación."""
+    if cur_from == cur_to or amount is None:
+        return amount
+    try:
+        res = SimuladorConversionService.simular(cur_from, cur_to, amount)
+        return res['converted_amount']
+    except Exception:
+        return amount
 
 
 class CurrencySaleService:
@@ -113,23 +258,28 @@ class CurrencySaleService:
         if not linked_account or not linked_account.is_active:
             raise ValidationError("El cliente debe contar obligatoriamente con una cuenta bancaria o billetera digital vinculada y activa en el sistema para proceder con la venta de divisas.")
 
-        # Simular / Calcular conversión aplicando tasa de compra vigente
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+
+        # Simular / Calcular conversión aplicando tasa de compra vigente y categoría de cliente
         sim_result = SimuladorConversionService.simular(
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
             user=user,
-            request=request
+            request=request,
+            client=cliente,
+            category_override=cliente.categoria if cliente else None
         )
 
-        # Determinar el monto total expresado en Guaraníes (PYG) para validación de límites
         eval_amount_pyg = amount_dec
         if from_currency != 'PYG':
             try:
                 r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                eval_amount_pyg = amount_dec * r_from.buy_rate
+                benefit_pct = sim_result.get('benefit_percentage', Decimal('0.00'))
+                custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
+                eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = sim_result.get('converted_amount', amount_dec)
+                eval_amount_pyg = amount_dec * Decimal('7300.00')
         else:
             eval_amount_pyg = amount_dec
 
@@ -146,52 +296,57 @@ class CurrencySaleService:
         gross_pyg = sim_result['converted_amount']
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
-            try:
-                r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                tipo_cambio_local_origen = r_from.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
 
         tipo_cambio_local_destino = Decimal('1.0000')
         if to_currency != 'PYG':
-            try:
-                r_to = ExchangeRate.objects.get(currency_code=to_currency)
-                tipo_cambio_local_destino = r_to.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_destino = sim_result.get('applied_rate', Decimal('1.0000'))
 
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
 
         if to_currency == 'PYG':
             commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            net_credit_pyg = gross_pyg - commission_amount - tax_amount
-            total_pyg = net_credit_pyg
+            total_pyg = gross_pyg
             total_origen = amount_dec
         else:
             commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            net_credit_dest = gross_pyg - commission_amount - tax_amount
-            total_pyg = (net_credit_dest * tipo_cambio_local_destino).quantize(Decimal('0.01'))
+            total_pyg = (gross_pyg * tipo_cambio_local_destino).quantize(Decimal('0.01'))
             total_origen = amount_dec
 
-        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id)
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+        pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(linked_account, total_pyg, 'PYG', origin_method)
 
         # Descontar de la cuenta origen
         if origin_method:
-            if origin_method.balance < amount_dec:
-                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: {origin_method.balance:,.2f}, requerido: {amount_dec:,.2f}.")
-            origin_method.balance -= amount_dec
+            required_debit = _convert_amount(amount_dec, from_currency, origin_method.moneda)
+            if origin_method.balance < required_debit:
+                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: {origin_method.balance:,.2f} {origin_method.moneda}, requerido: {required_debit:,.2f} {origin_method.moneda}.")
+            origin_method.balance -= required_debit
             origin_method.save()
 
         # Acreditar en la cuenta destino
         if destination_method:
-            destination_method.balance += total_pyg
+            required_credit = _convert_amount(total_pyg, 'PYG', destination_method.moneda)
+            destination_method.balance += required_credit
             destination_method.save()
 
         # Acreditar fondos en la cuenta bancaria / billetera digital vinculada del sistema
         linked_account.balance += total_pyg
         linked_account.save()
+
+        # Ejecutar pasarela de pago (PSE-18 Server-to-Server)
+        try:
+            PaymentGatewaySimulator.process_gateway_payment(
+                gateway_name=linked_account.code or 'SIPAP',
+                amount=total_pyg,
+                currency='PYG',
+                source_account=getattr(origin_method, 'numero_cuenta', 'GX-MAIN'),
+                destination_account=getattr(destination_method, 'numero_cuenta', 'GX-DEST')
+            )
+        except Exception:
+            pass
 
         # Medir tiempo de respuesta (Criterio: < 5 segundos)
         elapsed_time = time.time() - start_time
@@ -205,6 +360,7 @@ class CurrencySaleService:
         transaction = CurrencySaleTransaction.objects.create(
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
+            turno=_get_active_turn(user),
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
@@ -219,9 +375,12 @@ class CurrencySaleService:
             commission_amount=commission_amount,
             tax_amount=tax_amount,
             total_pyg=total_pyg,
-            status='SUCCESS',
+            status=tx_status,
+            payment_method_type=pm_type,
+            gateway_reference=gateway_ref,
+            gateway_status=gateway_status,
             processing_time_ms=processing_time_ms,
-            transparent_breakdown=f"{sim_result['transparent_breakdown']} | Comisión: {commission_amount:,.2f} {to_currency} | Impuestos: {tax_amount:,.2f} {to_currency} | Neto Acreditado: ₲ {total_pyg:,.2f} | Tiempo: {processing_time_ms}ms",
+            transparent_breakdown=f"{sim_result['transparent_breakdown']} | Neto Acreditado: ₲ {total_pyg:,.2f} | Tiempo: {processing_time_ms}ms",
             moneda_origen_id=from_currency,
             monto_origen=amount_dec,
             moneda_destino_id=to_currency,
@@ -265,21 +424,27 @@ class CurrencySaleService:
         if not linked_account or not linked_account.is_active:
             raise ValidationError("El cliente debe contar obligatoriamente con una cuenta bancaria o billetera digital vinculada y activa en el sistema para proceder con la venta de divisas.")
 
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+
         sim_result = SimuladorConversionService.simular(
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
             user=user,
-            request=request
+            request=request,
+            client=cliente,
+            category_override=cliente.categoria if cliente else None
         )
 
         eval_amount_pyg = amount_dec
         if from_currency != 'PYG':
             try:
                 r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                eval_amount_pyg = amount_dec * r_from.buy_rate
+                benefit_pct = sim_result.get('benefit_percentage', Decimal('0.00'))
+                custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
+                eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = sim_result.get('converted_amount', amount_dec)
+                eval_amount_pyg = amount_dec * Decimal('7300.00')
         else:
             eval_amount_pyg = amount_dec
 
@@ -294,40 +459,32 @@ class CurrencySaleService:
         gross_pyg = sim_result['converted_amount']
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
-            try:
-                r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                tipo_cambio_local_origen = r_from.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
 
         tipo_cambio_local_destino = Decimal('1.0000')
         if to_currency != 'PYG':
-            try:
-                r_to = ExchangeRate.objects.get(currency_code=to_currency)
-                tipo_cambio_local_destino = r_to.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_destino = sim_result.get('applied_rate', Decimal('1.0000'))
 
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
 
         if to_currency == 'PYG':
             commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            net_credit_pyg = gross_pyg - commission_amount - tax_amount
-            total_pyg = net_credit_pyg
+            total_pyg = gross_pyg
             total_origen = amount_dec
         else:
             commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            net_credit_dest = gross_pyg - commission_amount - tax_amount
-            total_pyg = (net_credit_dest * tipo_cambio_local_destino).quantize(Decimal('0.01'))
+            total_pyg = (gross_pyg * tipo_cambio_local_destino).quantize(Decimal('0.01'))
             total_origen = amount_dec
 
-        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id)
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+        pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(linked_account, total_pyg, 'PYG', origin_method, initial_status='PENDING')
 
         transaction = CurrencySaleTransaction.objects.create(
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
+            turno=_get_active_turn(user),
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
@@ -335,6 +492,9 @@ class CurrencySaleService:
             applied_rate=sim_result['applied_rate'],
             standard_rate=sim_result['standard_rate'],
             linked_account=linked_account,
+            payment_method_type=pm_type,
+            gateway_reference=gateway_ref,
+            gateway_status=gateway_status,
             origin_acreditation_method=origin_method,
             destination_acreditation_method=destination_method,
             acreditation_method=destination_method,
@@ -344,7 +504,7 @@ class CurrencySaleService:
             total_pyg=total_pyg,
             status='PENDING',
             processing_time_ms=0,
-            transparent_breakdown=f"Iniciado en PENDIENTE. Tasa aplicada: {sim_result['applied_rate']} | Comisión: {commission_amount:,.2f} {to_currency} | Impuestos: {tax_amount:,.2f} {to_currency}",
+            transparent_breakdown=f"Iniciado en PENDIENTE. Pasarela: {pm_type} ({gateway_ref}) - Estado: {gateway_status}. Tasa aplicada: {sim_result['applied_rate']}",
             moneda_origen_id=from_currency,
             monto_origen=amount_dec,
             moneda_destino_id=to_currency,
@@ -397,16 +557,18 @@ class CurrencySaleService:
         destination_method = transaction.destination_acreditation_method
 
         if origin_method:
-            if origin_method.balance < transaction.amount:
+            required_debit = _convert_amount(transaction.amount, transaction.from_currency, origin_method.moneda)
+            if origin_method.balance < required_debit:
                 transaction.status = 'FAILED'
                 transaction.transparent_breakdown += " | Falló por fondos insuficientes en cuenta origen al confirmar."
                 transaction.save()
-                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'.")
-            origin_method.balance -= transaction.amount
+                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: {origin_method.balance:,.2f} {origin_method.moneda}, requerido: {required_debit:,.2f} {origin_method.moneda}.")
+            origin_method.balance -= required_debit
             origin_method.save()
 
         if destination_method:
-            destination_method.balance += transaction.total_pyg
+            required_credit = _convert_amount(transaction.total_pyg, 'PYG', destination_method.moneda)
+            destination_method.balance += required_credit
             destination_method.save()
 
         linked_account.balance += transaction.total_pyg
@@ -422,6 +584,9 @@ class CurrencySaleService:
         elapsed_time = time.time() - start_time
         processing_time_ms = int(elapsed_time * 1000)
 
+        if transaction.gateway_reference:
+            PaymentGatewayLog.objects.filter(reference_code=transaction.gateway_reference).update(status='SUCCESS')
+        transaction.gateway_status = 'SUCCESS'
         transaction.status = 'SUCCESS'
         transaction.processing_time_ms = processing_time_ms
         transaction.transparent_breakdown += f" | Venta confirmada exitosamente. Tiempo: {processing_time_ms}ms"
@@ -442,6 +607,9 @@ class CurrencySaleService:
         if transaction.status != 'PENDING':
             raise ValidationError(f"La transacción se encuentra en estado '{transaction.status}' y no puede ser cancelada manualmente.")
 
+        if transaction.gateway_reference:
+            PaymentGatewayLog.objects.filter(reference_code=transaction.gateway_reference).update(status='CANCELLED')
+        transaction.gateway_status = 'CANCELLED'
         transaction.status = 'CANCELLED'
         transaction.transparent_breakdown += " | Cancelado manualmente por el usuario antes de confirmar. Sin acreditación de fondos."
         transaction.save()
@@ -692,7 +860,7 @@ def currency_transactions_history_view(request):
             p.display_converted = p.converted_amount
             p.display_from = p.from_currency
             p.display_to = p.to_currency
-            p.display_total = p.total_pyg
+            p.display_total = p.converted_amount
             s_up = str(p.status).upper()
             if s_up in ['SUCCESS', 'PAGADA']:
                 p.status_display = 'Pagada'
@@ -714,7 +882,7 @@ def currency_transactions_history_view(request):
             s.display_converted = s.converted_amount
             s.display_from = s.from_currency
             s.display_to = s.to_currency
-            s.display_total = s.total_pyg
+            s.display_total = s.converted_amount
             s_up = str(s.status).upper()
             if s_up in ['SUCCESS', 'PAGADA']:
                 s.status_display = 'Pagada'
@@ -733,7 +901,7 @@ def currency_transactions_history_view(request):
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="historial_transacciones.csv"'
         writer = csv.writer(response)
-        writer.writerow(['ID Operacion', 'Tipo', 'Fecha y Hora', 'Cliente', 'Moneda Origen', 'Moneda Destino', 'Monto Origen', 'Monto Convertido', 'Tasa Aplicada', 'Total (PYG)', 'Estado'])
+        writer.writerow(['ID Operacion', 'Tipo', 'Fecha y Hora', 'Cliente', 'Moneda Origen', 'Moneda Destino', 'Monto Origen', 'Monto Convertido', 'Total Recibido', 'Estado'])
         for tx in all_transactions:
             cliente_nombre = tx.cliente.nombre_o_razon_social if tx.cliente else 'N/A'
             writer.writerow([
@@ -745,8 +913,7 @@ def currency_transactions_history_view(request):
                 tx.display_to,
                 tx.display_amount,
                 tx.display_converted,
-                getattr(tx, 'applied_rate', ''),
-                tx.display_total,
+                f"{tx.display_total} {tx.display_to}",
                 getattr(tx, 'status_display', tx.status)
             ])
         return response
@@ -842,23 +1009,41 @@ class CurrencyPurchaseService:
         if amount_dec <= Decimal('0.00'):
             raise ValidationError("El monto de la transacción debe ser mayor a cero.")
 
-        # Simular / Calcular conversión para obtener equivalencia en PYG y valores
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+
+        # Simular / Calcular conversión para obtener equivalencia en PYG y valores aplicando categoría de cliente
         sim_result = SimuladorConversionService.simular(
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
             user=user,
-            request=request
+            request=request,
+            client=cliente,
+            category_override=cliente.categoria if cliente else None
         )
 
-        # Determinar el monto total expresado en Guaraníes (PYG) para validación de límites y fondos
         eval_amount_pyg = amount_dec
         if from_currency != 'PYG':
             try:
                 r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                eval_amount_pyg = amount_dec * r_from.buy_rate
+                benefit_pct = sim_result.get('benefit_percentage', Decimal('0.00'))
+                custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
+                eval_amount_pyg = amount_dec * custom_buy
             except Exception:
+                eval_amount_pyg = amount_dec * Decimal('7300.00')
+        else:
+            eval_amount_pyg = amount_dec
+        if from_currency != 'PYG':
+            if to_currency == 'PYG':
                 eval_amount_pyg = sim_result.get('converted_amount', amount_dec)
+            else:
+                try:
+                    r_from = ExchangeRate.objects.get(currency_code=from_currency)
+                    benefit_pct = sim_result.get('benefit_percentage', Decimal('0.00'))
+                    custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
+                    eval_amount_pyg = amount_dec * custom_buy
+                except Exception:
+                    eval_amount_pyg = amount_dec * r_from.buy_rate
         else:
             eval_amount_pyg = amount_dec
 
@@ -887,44 +1072,55 @@ class CurrencyPurchaseService:
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
-            try:
-                r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                tipo_cambio_local_origen = r_from.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
 
         if from_currency == 'PYG':
             commission_amount = (eval_amount_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            total_cost_pyg = eval_amount_pyg + commission_amount + tax_amount
-            total_origen = total_cost_pyg
+            total_cost_pyg = eval_amount_pyg
+            total_origen = amount_dec
         else:
             commission_amount = (amount_dec * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            total_origen = amount_dec + commission_amount + tax_amount
+            total_origen = amount_dec
             total_pyg = (total_origen * tipo_cambio_local_origen).quantize(Decimal('0.01'))
             total_cost_pyg = total_pyg
 
         if payment_method.balance < total_cost_pyg:
             raise ValidationError(f"Fondos insuficientes en el método de pago '{payment_method.name}'. Saldo disponible: ₲ {payment_method.balance:,.2f}, requerido: ₲ {total_cost_pyg:,.2f}.")
 
-        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id)
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+        pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(payment_method, total_cost_pyg, 'PYG', origin_method)
 
         # Descontar de la cuenta origen del cliente
         if origin_method:
-            if origin_method.balance < total_cost_pyg:
-                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: ₲ {origin_method.balance:,.2f}, requerido: ₲ {total_cost_pyg:,.2f}.")
-            origin_method.balance -= total_cost_pyg
+            required_debit = _convert_amount(total_origen, from_currency, origin_method.moneda)
+            if origin_method.balance < required_debit:
+                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: {origin_method.balance:,.2f} {origin_method.moneda}, requerido: {required_debit:,.2f} {origin_method.moneda}.")
+            origin_method.balance -= required_debit
             origin_method.save()
 
         # Acreditar en la cuenta destino del cliente
         if destination_method:
-            destination_method.balance += sim_result['converted_amount']
+            required_credit = _convert_amount(sim_result['converted_amount'], to_currency, destination_method.moneda)
+            destination_method.balance += required_credit
             destination_method.save()
 
         # Acreditar fondos en el método de pago del sistema (Caja del Negocio)
         payment_method.balance += total_cost_pyg
         payment_method.save()
+
+        # Ejecutar pasarela de pago (PSE-18 Server-to-Server)
+        try:
+            PaymentGatewaySimulator.process_gateway_payment(
+                gateway_name=payment_method.code or 'SIPAP',
+                amount=total_cost_pyg,
+                currency='PYG',
+                source_account=getattr(origin_method, 'numero_cuenta', 'GX-MAIN'),
+                destination_account=getattr(destination_method, 'numero_cuenta', 'GX-DEST')
+            )
+        except Exception:
+            pass
 
         # Medir tiempo de respuesta (Criterio 4: < 5 segundos)
         elapsed_time = time.time() - start_time
@@ -938,6 +1134,7 @@ class CurrencyPurchaseService:
         transaction = CurrencyPurchaseTransaction.objects.create(
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
+            turno=_get_active_turn(user),
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
@@ -951,9 +1148,12 @@ class CurrencyPurchaseService:
             commission_amount=commission_amount,
             tax_amount=tax_amount,
             total_pyg=total_cost_pyg,
-            status='SUCCESS',
+            status=tx_status,
+            payment_method_type=pm_type,
+            gateway_reference=gateway_ref,
+            gateway_status=gateway_status,
             processing_time_ms=processing_time_ms,
-            transparent_breakdown=f"{sim_result['transparent_breakdown']} | Comisión: {commission_amount:,.2f} {from_currency} | Impuestos: {tax_amount:,.2f} {from_currency} | Total a Pagar: {total_origen:,.2f} {from_currency} (Equiv. ₲ {total_cost_pyg:,.2f}) | Caja: Ingresa stock de {amount_dec} {from_currency} y egresa stock de {sim_result['converted_amount']} {to_currency} | Tiempo: {processing_time_ms}ms",
+            transparent_breakdown=f"{sim_result['transparent_breakdown']} | Total a Pagar: {total_origen:,.2f} {from_currency} (Equiv. ₲ {total_cost_pyg:,.2f}) | Caja: Ingresa stock de {amount_dec} {from_currency} y egresa stock de {sim_result['converted_amount']} {to_currency} | Tiempo: {processing_time_ms}ms",
             moneda_origen_id=from_currency,
             monto_origen=amount_dec,
             moneda_destino_id=to_currency,
@@ -1000,21 +1200,27 @@ class CurrencyPurchaseService:
         if amount_dec <= Decimal('0.00'):
             raise ValidationError("El monto de la transacción debe ser mayor a cero.")
 
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+
         sim_result = SimuladorConversionService.simular(
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
             user=user,
-            request=request
+            request=request,
+            client=cliente,
+            category_override=cliente.categoria if cliente else None
         )
 
         eval_amount_pyg = amount_dec
         if from_currency != 'PYG':
             try:
                 r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                eval_amount_pyg = amount_dec * r_from.buy_rate
+                benefit_pct = sim_result.get('benefit_percentage', Decimal('0.00'))
+                custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
+                eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = sim_result.get('converted_amount', amount_dec)
+                eval_amount_pyg = amount_dec * Decimal('7300.00')
         else:
             eval_amount_pyg = amount_dec
 
@@ -1059,32 +1265,30 @@ class CurrencyPurchaseService:
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
-            try:
-                r_from = ExchangeRate.objects.get(currency_code=from_currency)
-                tipo_cambio_local_origen = r_from.buy_rate
-            except Exception:
-                pass
+            tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
 
         if from_currency == 'PYG':
             commission_amount = (eval_amount_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            total_cost_pyg = eval_amount_pyg + commission_amount + tax_amount
-            total_origen = total_cost_pyg
+            total_cost_pyg = eval_amount_pyg
+            total_origen = amount_dec
         else:
             commission_amount = (amount_dec * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
-            total_origen = amount_dec + commission_amount + tax_amount
+            total_origen = amount_dec
             total_pyg = (total_origen * tipo_cambio_local_origen).quantize(Decimal('0.01'))
             total_cost_pyg = total_pyg
 
         if payment_method.balance < total_cost_pyg:
             raise ValidationError(f"Fondos insuficientes en el método de pago '{payment_method.name}'. Saldo disponible: ₲ {payment_method.balance:,.2f}, requerido: ₲ {total_cost_pyg:,.2f}.")
 
-        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id)
+        cliente, origin_method, destination_method = _resolve_client_and_methods(user, request, origin_method_id, destination_method_id, from_currency=from_currency, to_currency=to_currency)
+        pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(payment_method, total_cost_pyg, 'PYG', origin_method, initial_status='PENDING')
 
         transaction = CurrencyPurchaseTransaction.objects.create(
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
+            turno=_get_active_turn(user),
             from_currency=from_currency,
             to_currency=to_currency,
             amount=amount_dec,
@@ -1092,6 +1296,9 @@ class CurrencyPurchaseService:
             applied_rate=sim_result['applied_rate'],
             standard_rate=sim_result['standard_rate'],
             payment_method=payment_method,
+            payment_method_type=pm_type,
+            gateway_reference=gateway_ref,
+            gateway_status=gateway_status,
             origin_acreditation_method=origin_method,
             destination_acreditation_method=destination_method,
             benefit_percentage=sim_result['benefit_percentage'],
@@ -1100,7 +1307,7 @@ class CurrencyPurchaseService:
             total_pyg=total_cost_pyg,
             status='PENDING',
             processing_time_ms=0,
-            transparent_breakdown=f"Iniciado en PENDIENTE. Tasa aplicada: {sim_result['applied_rate']} | Comisión: {commission_amount:,.2f} {from_currency} | Impuestos: {tax_amount:,.2f} {from_currency} | Total a Pagar: {total_origen:,.2f} {from_currency} | Caja: Ingresa stock de {amount_dec} {from_currency} y egresa stock de {sim_result['converted_amount']} {to_currency}",
+            transparent_breakdown=f"Iniciado en PENDIENTE. Pasarela: {pm_type} ({gateway_ref}) - Estado: {gateway_status}. Tasa aplicada: {sim_result['applied_rate']} | Total a Pagar: {total_origen:,.2f} {from_currency}",
             moneda_origen_id=from_currency,
             monto_origen=amount_dec,
             moneda_destino_id=to_currency,
@@ -1165,16 +1372,18 @@ class CurrencyPurchaseService:
         destination_method = transaction.destination_acreditation_method
 
         if origin_method:
-            if origin_method.balance < transaction.total_pyg:
+            required_debit = _convert_amount(transaction.total_origen, transaction.from_currency, origin_method.moneda)
+            if origin_method.balance < required_debit:
                 transaction.status = 'FAILED'
                 transaction.transparent_breakdown += " | Falló por fondos insuficientes en cuenta origen al confirmar."
                 transaction.save()
-                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'.")
-            origin_method.balance -= transaction.total_pyg
+                raise ValidationError(f"Fondos insuficientes en la cuenta origen '{origin_method.entidad_financiera}'. Saldo disponible: {origin_method.balance:,.2f} {origin_method.moneda}, requerido: {required_debit:,.2f} {origin_method.moneda}.")
+            origin_method.balance -= required_debit
             origin_method.save()
 
         if destination_method:
-            destination_method.balance += transaction.converted_amount
+            required_credit = _convert_amount(transaction.converted_amount, transaction.to_currency, destination_method.moneda)
+            destination_method.balance += required_credit
             destination_method.save()
 
         pm.balance += transaction.total_pyg
@@ -1189,6 +1398,9 @@ class CurrencyPurchaseService:
         elapsed_time = time.time() - start_time
         processing_time_ms = int(elapsed_time * 1000)
 
+        if transaction.gateway_reference:
+            PaymentGatewayLog.objects.filter(reference_code=transaction.gateway_reference).update(status='SUCCESS')
+        transaction.gateway_status = 'SUCCESS'
         transaction.status = 'SUCCESS'
         transaction.processing_time_ms = processing_time_ms
         transaction.transparent_breakdown += f" | Pago confirmado exitosamente. Tiempo: {processing_time_ms}ms"
@@ -1221,6 +1433,9 @@ class CurrencyPurchaseService:
         if transaction.status != 'PENDING':
             raise ValidationError(f"La transacción se encuentra en estado '{transaction.status}' y no puede ser cancelada manualmente.")
 
+        if transaction.gateway_reference:
+            PaymentGatewayLog.objects.filter(reference_code=transaction.gateway_reference).update(status='CANCELLED')
+        transaction.gateway_status = 'CANCELLED'
         transaction.status = 'CANCELLED'
         transaction.transparent_breakdown += " | Cancelado manualmente por el usuario antes de confirmar el pago. Sin débito financiero."
         transaction.save()

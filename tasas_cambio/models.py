@@ -109,8 +109,11 @@ class PaymentMethod(models.Model):
         updated_at (DateTimeField): Fecha de última actualización.
     """
     METHOD_TYPES = [
-        ('TARJETA_CREDITO', 'Tarjeta de Crédito'),
-        ('TARJETA_DEBITO', 'Tarjeta de Débito'),
+        ('TARJETA_CREDITO', 'Tarjeta de Crédito (Stripe/Bancard)'),
+        ('TARJETA_DEBITO', 'Tarjeta de Débito (Débito Directo)'),
+        ('CUENTA_BANCARIA_LOCAL', 'Cuenta Bancaria Local (SIPAP)'),
+        ('BILLETERA_ELECTRONICA', 'Billetera Electrónica (Tigo Money/Personal)'),
+        ('CUENTA_BANCARIA_EXTRANJERA', 'Cuenta Bancaria Extranjera (SWIFT/IBAN)'),
         ('TRANSFERENCIA', 'Transferencia Bancaria'),
         ('BILLETERA', 'Billetera Electrónica'),
         ('EFECTIVO', 'Efectivo en Sucursal'),
@@ -119,8 +122,9 @@ class PaymentMethod(models.Model):
 
     code = models.CharField(max_length=50, unique=True, verbose_name="Código de Método de Pago")
     name = models.CharField(max_length=100, verbose_name="Nombre del Método de Pago")
-    method_type = models.CharField(max_length=30, choices=METHOD_TYPES, default='TRANSFERENCIA', verbose_name="Tipo de Método de Pago")
+    method_type = models.CharField(max_length=40, choices=METHOD_TYPES, default='TRANSFERENCIA', verbose_name="Tipo de Método de Pago")
     account_number = models.CharField(max_length=100, blank=True, null=True, verbose_name="Número de Cuenta / Tarjeta")
+    swift_iban = models.CharField(max_length=100, blank=True, null=True, verbose_name="Código SWIFT / IBAN")
     bank_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Banco / Emisor")
     account_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de Cuenta")
     holder_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="Titular")
@@ -142,4 +146,107 @@ class PaymentMethod(models.Model):
         """
         acc_info = f" - N°: {self.account_number}" if self.account_number else ""
         return f"{self.name} ({self.get_method_type_display()}){acc_info} ({'Activo' if self.is_active else 'Inactivo'})"
+
+
+class CurrencyAlert(models.Model):
+    """
+    Modelo que representa una alerta de tasa de cambio configurada por un usuario cliente (PSE-35).
+    
+    Attributes:
+        user (ForeignKey): Usuario propietario de la alerta.
+        currency_code (CharField): Código de la divisa vigilada (USD, EUR, BRL, ARS, PYG).
+        condition_type (CharField): Tipo de tasa vigilada ('COMPRA' o 'VENTA').
+        target_rate (DecimalField): Valor de tasa objetivo definido por el usuario (en Gs).
+        notification_channel (CharField): Canal de notificación ('EMAIL', 'PUSH', 'AMBOS').
+        is_active (BooleanField): Estado de activación de la alerta (True = Activa, False = Inactiva).
+        triggered (BooleanField): Indica si la alerta ya fue disparada.
+        created_at (DateTimeField): Fecha y hora de creación.
+        updated_at (DateTimeField): Fecha y hora de última actualización.
+    """
+    CHANNELS = [
+        ('EMAIL', 'Correo Electrónico (Email)'),
+        ('PUSH', 'Notificación Push en Tiempo Real'),
+        ('AMBOS', 'Email y Push'),
+    ]
+    CONDITIONS = [
+        ('COMPRA', 'Tasa de Compra'),
+        ('VENTA', 'Tasa de Venta'),
+    ]
+
+    cliente = models.ForeignKey('authentication.Cliente', on_delete=models.CASCADE, null=True, blank=True, related_name='currency_alerts', verbose_name="Cliente")
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuario Creador")
+    currency_code = models.CharField(max_length=10, verbose_name="Código de Divisa")
+    condition_type = models.CharField(max_length=20, choices=CONDITIONS, default='COMPRA', verbose_name="Tipo de Tasa")
+    target_rate = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Objetivo (Gs)")
+    notification_channel = models.CharField(max_length=20, choices=CHANNELS, default='EMAIL', verbose_name="Canal de Notificación")
+    is_active = models.BooleanField(default=True, verbose_name="Activa")
+    triggered = models.BooleanField(default=False, verbose_name="Disparada")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última Actualización")
+
+    class Meta:
+        verbose_name = "Alerta de Tasa de Cambio"
+        verbose_name_plural = "Alertas de Tasas de Cambio"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        """
+        Devuelve la representación en cadena de la alerta de tasa.
+
+        Returns:
+            str: Representación descriptiva de la alerta.
+        """
+        status = "Activa" if self.is_active else "Inactiva"
+        client_name = self.cliente.nombre_o_razon_social if self.cliente else "Sin Cliente"
+        return f"Alerta {self.currency_code} ({self.condition_type} >= {self.target_rate}) - Cliente: {client_name} [{status}]"
+
+
+class NotificationLog(models.Model):
+    """
+    Modelo que registra las notificaciones enviadas a los usuarios por cumplimiento de alertas
+    o por variaciones abruptas en las tasas de cambio (PSE-35).
+    
+    Attributes:
+        cliente (ForeignKey): Cliente destinatario.
+        user (ForeignKey): Usuario destinatario (Null si es general/broadcast).
+        title (CharField): Título descriptivo de la notificación.
+        message (TextField): Cuerpo del mensaje de la notificación.
+        notification_type (CharField): Tipo de evento ('ALERTA_TASA', 'VARIACION_ABRUPTA').
+        channel (CharField): Canal utilizado ('EMAIL', 'PUSH', 'AMBOS').
+        is_read (BooleanField): Estado de lectura.
+        created_at (DateTimeField): Fecha y hora de emisión.
+    """
+    TYPES = [
+        ('ALERTA_TASA', 'Alerta de Tasa Objetivo'),
+        ('VARIACION_ABRUPTA', 'Variación Abrupta de Mercado'),
+    ]
+    CHANNELS = [
+        ('EMAIL', 'Email'),
+        ('PUSH', 'Push'),
+        ('AMBOS', 'Email y Push'),
+    ]
+
+    cliente = models.ForeignKey('authentication.Cliente', on_delete=models.CASCADE, null=True, blank=True, related_name='notification_logs', verbose_name="Cliente Destinatario")
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuario Destinatario")
+    title = models.CharField(max_length=200, verbose_name="Título de Notificación")
+    message = models.TextField(verbose_name="Mensaje")
+    notification_type = models.CharField(max_length=50, choices=TYPES, default='ALERTA_TASA', verbose_name="Tipo de Notification")
+    channel = models.CharField(max_length=20, choices=CHANNELS, default='PUSH', verbose_name="Canal")
+    is_read = models.BooleanField(default=False, verbose_name="Leída")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha y Hora")
+
+    class Meta:
+        verbose_name = "Registro de Notificación"
+        verbose_name_plural = "Registros de Notificaciones"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        """
+        Devuelve la representación en cadena del registro de notificación.
+
+        Returns:
+            str: Representación descriptiva de la notificación.
+        """
+        client_name = self.cliente.nombre_o_razon_social if self.cliente else "Broadcast General"
+        return f"[{self.channel}] {self.title} -> {client_name}"
 

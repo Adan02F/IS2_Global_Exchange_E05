@@ -1,0 +1,250 @@
+# -*- coding: utf-8 -*-
+from django.test import TestCase, Client
+from django.urls import reverse
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from decimal import Decimal
+from caja.models import Caja, TurnoCaja, BitacoraArqueo, verificar_turno_activo, puede_realizar_transaccion
+
+class CajaShiftPSE20Tests(TestCase):
+    """
+    Suite de pruebas unitarias independiente y exclusiva para la Historia de Usuario PSE-20:
+    Apertura y Cierre de Turnos de Caja (Epic: Gestión de Caja).
+    Valida:
+    - La correcta apertura de turno asociando cajero, fecha, hora y saldos iniciales por divisa (USD, EUR, PYG, BRL, ARS).
+    - El congelamiento de operaciones al procesar el cierre del turno con saldos finales.
+    - La validación del control de estado activo (bloqueo de transacciones sin turno abierto e impedimento de apertura de múltiples turnos activos simultáneos por caja).
+    """
+
+    def setUp(self):
+        """
+        Configuración inicial de caja, cajero y cliente web para pruebas.
+        """
+        self.client = Client()
+        self.gestion_url = reverse('caja:gestion_caja')
+        
+        self.cajero = User.objects.create_user(username='cajero_test', password='password123')
+        self.caja = Caja.objects.create(nombre='Caja Principal 01', codigo='C01', activa=True)
+        self.caja.cajeros_asignados.add(self.cajero)
+
+    def test_caja_shift_opening_and_initial_balances(self):
+        """
+        Valida la correcta apertura de turno asociando cajero, fecha, hora y saldos iniciales por divisa.
+        """
+        self.client.force_login(self.cajero)
+        
+        url_abrir = reverse('caja:abrir_turno', args=[self.caja.id])
+        response = self.client.post(url_abrir, {
+            'saldo_inicial_pyg': '5000000.00',
+            'saldo_inicial_usd': '1000.00',
+            'saldo_inicial_eur': '500.00',
+            'saldo_inicial_brl': '2000.00',
+            'saldo_inicial_ars': '10000.00'
+        })
+        
+        self.assertRedirects(response, self.gestion_url)
+        
+        # Verificar que el turno fue creado y está abierto
+        turno = TurnoCaja.objects.filter(caja=self.caja, estado='ABIERTO').first()
+        self.assertIsNotNone(turno)
+        self.assertEqual(turno.cajero, self.cajero)
+        self.assertIsNotNone(turno.fecha_apertura)
+        self.assertEqual(turno.saldo_inicial_pyg, Decimal('5000000.00'))
+        self.assertEqual(turno.saldo_inicial_usd, Decimal('1000.00'))
+        self.assertEqual(turno.saldo_inicial_eur, Decimal('500.00'))
+        self.assertEqual(turno.saldo_inicial_brl, Decimal('2000.00'))
+        self.assertEqual(turno.saldo_inicial_ars, Decimal('10000.00'))
+
+    def test_caja_shift_closing_and_freezing_operations(self):
+        """
+        Valida el congelamiento de operaciones al procesar el cierre del turno con saldos finales físicos.
+        """
+        turno = TurnoCaja.objects.create(
+            caja=self.caja,
+            cajero=self.cajero,
+            saldo_inicial_pyg=Decimal('1000000.00'),
+            estado='ABIERTO'
+        )
+        
+        # Con turno abierto, se puede operar
+        self.assertTrue(puede_realizar_transaccion(self.caja))
+
+        self.client.force_login(self.cajero)
+        url_cerrar = reverse('caja:cerrar_turno', args=[turno.id])
+        response = self.client.post(url_cerrar, {
+            'saldo_final_pyg': '950000.00',
+            'saldo_final_usd': '0.00',
+            'saldo_final_eur': '0.00',
+            'saldo_final_brl': '0.00',
+            'saldo_final_ars': '0.00'
+        })
+        
+        self.assertRedirects(response, self.gestion_url)
+        
+        turno.refresh_from_db()
+        self.assertEqual(turno.estado, 'CERRADO')
+        self.assertIsNotNone(turno.fecha_cierre)
+        self.assertEqual(turno.saldo_final_pyg, Decimal('950000.00'))
+
+        # Al cerrar el turno, las operaciones deben estar congeladas (bloqueadas)
+        self.assertFalse(puede_realizar_transaccion(self.caja))
+
+    def test_active_state_control_and_prevent_multiple_active_shifts(self):
+        """
+        Valida el control de estado activo: bloqueo de transacciones sin turno abierto
+        e impedimento de apertura de múltiples turnos activos simultáneos por caja.
+        """
+        # Sin turno abierto, no se puede realizar transacciones
+        self.assertFalse(puede_realizar_transaccion(self.caja))
+        self.assertIsNone(verificar_turno_activo(self.caja))
+
+        # Abrir primer turno
+        TurnoCaja.objects.create(
+            caja=self.caja,
+            cajero=self.cajero,
+            saldo_inicial_pyg=Decimal('100000.00'),
+            estado='ABIERTO'
+        )
+
+        self.assertTrue(puede_realizar_transaccion(self.caja))
+        self.assertIsNotNone(verificar_turno_activo(self.caja))
+
+        # Intentar abrir un segundo turno activo para la misma caja debe lanzar ValidationError
+        with self.assertRaises(ValidationError):
+            turno_duplicado = TurnoCaja(
+                caja=self.caja,
+                cajero=self.cajero,
+                saldo_inicial_pyg=Decimal('500000.00'),
+                estado='ABIERTO'
+            )
+            turno_duplicado.save()
+
+    def test_cashier_independent_and_no_discrepancy_notifications_visibility(self):
+        """
+        Valida que:
+        1. La apertura y cierre de caja sea independiente para cada cajero.
+        2. Los cajeros no visualicen notificaciones de descuadres ni arqueos cerrados (solo admin).
+        3. El administrador pueda visualizar todas las cajas y notificaciones de descuadre.
+        """
+        admin_user = User.objects.create_superuser(username='admin_test_caja', password='password123')
+        
+        cajero2 = User.objects.create_user(username='cajero2_test', password='password123')
+        caja2 = Caja.objects.create(nombre='Caja Secundaria 02', codigo='C02', activa=True)
+
+        turno_cerrado = TurnoCaja.objects.create(
+            caja=self.caja,
+            cajero=self.cajero,
+            estado='CERRADO',
+            saldo_inicial_pyg=Decimal('1000000.00'),
+            saldo_final_pyg=Decimal('900000.00')
+        )
+        BitacoraArqueo.objects.create(
+            turno=turno_cerrado,
+            divisa='PYG',
+            tipo_descuadre='FALTANTE',
+            monto_diferencia=Decimal('100000.00'),
+            mensaje='Prueba de descuadre'
+        )
+
+        # 1. Test Cashier view
+        self.client.force_login(self.cajero)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['is_admin'])
+        self.assertEqual(len(response.context['turnos_cerrados']), 0)
+        self.assertEqual(len(response.context['bitacoras_recientes']), 0)
+
+        # 2. Test Admin view
+        self.client.force_login(admin_user)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['is_admin'])
+        self.assertGreaterEqual(len(response.context['bitacoras_recientes']), 1)
+
+    def test_cashier_sees_only_one_independent_box(self):
+        """
+        Valida que cada cajero vea exactamente una única caja de forma independiente
+        y que el administrador vea todas las cajas activas.
+        """
+        admin_user = User.objects.create_superuser(username='admin_box_test', password='password123')
+        cajero2 = User.objects.create_user(username='cajero2_box_test', password='password123')
+        caja2 = Caja.objects.create(nombre='Caja Secundaria 02', codigo='C02', activa=True)
+        caja2.cajeros_asignados.add(cajero2)
+
+        # Cajero 1 ve exactamente 1 caja
+        self.client.force_login(self.cajero)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['cajas_data']), 1)
+
+        # Cajero 1 abre turno en Caja 1
+        TurnoCaja.objects.create(
+            caja=self.caja,
+            cajero=self.cajero,
+            estado='ABIERTO'
+        )
+
+        # Cajero 1 sigue viendo su caja activa (1 caja)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(len(response.context['cajas_data']), 1)
+        self.assertEqual(response.context['cajas_data'][0]['caja'], self.caja)
+
+        # Cajero 2 ve exactamente 1 caja (la caja libre, Caja 2)
+        self.client.force_login(cajero2)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['cajas_data']), 1)
+        self.assertEqual(response.context['cajas_data'][0]['caja'], caja2)
+
+        # Administrador ve todas las cajas activas (2 cajas)
+        self.client.force_login(admin_user)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['cajas_data']), 2)
+
+    def test_cannot_open_shift_with_zero_balances(self):
+        """
+        Valida que no se pueda abrir turno si todas las cantidades iniciales de divisas están en 0.
+        """
+        self.client.force_login(self.cajero)
+        url_abrir = reverse('caja:abrir_turno', args=[self.caja.id])
+        response = self.client.post(url_abrir, {
+            'saldo_inicial_pyg': '0',
+            'saldo_inicial_usd': '0',
+            'saldo_inicial_eur': '0',
+            'saldo_inicial_brl': '0',
+            'saldo_inicial_ars': '0'
+        })
+        self.assertRedirects(response, self.gestion_url)
+        self.assertFalse(TurnoCaja.objects.filter(caja=self.caja, estado='ABIERTO').exists())
+
+    def test_admin_assigns_multiple_cashiers_to_same_box(self):
+        """
+        Valida que el administrador pueda asignar múltiples cajeros a una misma caja,
+        de modo que cuando el cajero 1 cierre su turno, el cajero 2 pueda abrir
+        turno en esa misma caja asignada.
+        """
+        cajero1 = User.objects.create_user(username='cajero_seq_1', password='password123')
+        cajero2 = User.objects.create_user(username='cajero_seq_2', password='password123')
+        caja_unica = Caja.objects.create(nombre='Caja Única Sucursal', codigo='CU01', activa=True)
+        caja_unica.cajeros_asignados.add(cajero1, cajero2)
+
+        # Cajero 1 ve la caja única
+        self.client.force_login(cajero1)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['cajas_data'][0]['caja'], caja_unica)
+
+        # Cajero 1 abre y cierra turno
+        turno1 = TurnoCaja.objects.create(caja=caja_unica, cajero=cajero1, estado='ABIERTO')
+        turno1.estado = 'CERRADO'
+        turno1.save()
+
+        # Cajero 2 ve la misma caja única (ahora libre de turno activo)
+        self.client.force_login(cajero2)
+        response = self.client.get(self.gestion_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['cajas_data'][0]['caja'], caja_unica)
+        self.assertIsNone(response.context['cajas_data'][0]['turno_activo'])
+
+

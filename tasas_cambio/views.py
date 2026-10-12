@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from decimal import Decimal
 from datetime import timedelta
 import random
@@ -149,12 +150,15 @@ def get_active_client(user, request=None):
     if not active_client:
         try:
             profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
-            if profile and profile.keycloak_id:
-                rel = UsuarioClienteRelacion.objects.filter(keycloak_user_id=profile.keycloak_id).select_related('cliente').first()
-                if rel:
-                    active_client = rel.cliente
-                    if request:
-                        request.session['active_client_id'] = str(active_client.id)
+            kc_id = profile.keycloak_id if profile else None
+            q_filter = models.Q(keycloak_user_id=str(user.id)) | models.Q(keycloak_user_id=user.username)
+            if kc_id:
+                q_filter |= models.Q(keycloak_user_id=kc_id)
+            rel = UsuarioClienteRelacion.objects.filter(q_filter).select_related('cliente').first()
+            if rel:
+                active_client = rel.cliente
+                if request:
+                    request.session['active_client_id'] = str(active_client.id)
         except Exception:
             pass
 
@@ -221,7 +225,7 @@ class SimuladorConversionService:
     """
 
     @staticmethod
-    def simular(from_currency, to_currency, amount, user=None, request=None):
+    def simular(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None):
         """
         Simula una conversión monetaria entre dos divisas aplicando reglas de beneficio parametrizables.
 
@@ -230,6 +234,8 @@ class SimuladorConversionService:
             to_currency (str): Código ISO de la moneda de destino (ej. 'PYG', 'EUR').
             amount (Decimal or float or int): Monto a convertir.
             user (User, optional): Usuario solicitante para determinar categoría y beneficios (VIP, Corporativo).
+            client (Cliente, optional): Instancia del cliente activo.
+            category_override (str, optional): Código de categoría explícito (ej. 'VIP', 'CORPORATIVO').
 
         Returns:
             dict: Diccionario con el resultado detallado de la simulación y desglose transparente.
@@ -254,15 +260,25 @@ class SimuladorConversionService:
         threshold_met = False
         min_operation_amount = Decimal('0.00')
 
-        if user and user.is_authenticated:
+        cat_code = 'MINORISTA'
+        if category_override:
+            cat_code = category_override
+        elif client and hasattr(client, 'categoria') and client.categoria:
+            cat_code = client.categoria
+        elif user and user.is_authenticated:
             try:
                 cat_code = get_user_effective_category(user, request=request)
-                rule = ClientBenefitRule.objects.filter(category_code=cat_code).first()
+            except Exception:
+                pass
+
+        if cat_code:
+            try:
+                rule = ClientBenefitRule.objects.filter(category_code__iexact=cat_code).first()
                 if rule:
                     category_name = rule.category_name
                     min_operation_amount = rule.min_operation_amount
 
-                    if cat_code != 'MINORISTA':
+                    if str(cat_code).upper() != 'MINORISTA':
                         benefit_percentage = rule.benefit_percentage
                         threshold_met = True
                     else:
@@ -845,6 +861,7 @@ def currency_payment_config_view(request):
                 bank_name = request.POST.get('pm_bank_name', '').strip()
                 account_type = request.POST.get('pm_account_type', '').strip()
                 holder_name = request.POST.get('pm_holder_name', '').strip()
+                swift_iban = request.POST.get('pm_swift_iban', '').strip()
                 description = request.POST.get('pm_description', '').strip()
                 is_active = request.POST.get('pm_is_active') == 'on'
 
@@ -860,6 +877,7 @@ def currency_payment_config_view(request):
                         'bank_name': bank_name,
                         'account_type': account_type,
                         'holder_name': holder_name,
+                        'swift_iban': swift_iban,
                         'description': description,
                         'is_active': is_active
                     }
@@ -947,6 +965,7 @@ def rates_manager_view(request):
                     sell_rate=sell_val,
                     timestamp=timezone.now()
                 )
+                check_and_trigger_rate_alerts(code, buy_val, sell_val)
                 success_message = f"Cotización en tiempo real para {code} actualizada exitosamente y registrada en el historial."
 
             elif action == 'add_historical_rate':
@@ -1023,5 +1042,224 @@ def rates_manager_view(request):
         'now': timezone.now(),
     }
     return render(request, 'tasas_cambio/rates_manager.html', context)
+
+
+def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
+    """
+    Verifica y dispara alertas de tasa configuradas por usuarios (PSE-35),
+    enviando notificaciones en tiempo real y correos electrónicos (individuales o a grupos/clientes).
+    
+    Args:
+        currency_code (str): Código de la divisa (USD, EUR, etc.).
+        new_buy_rate (Decimal): Nueva tasa de compra.
+        new_sell_rate (Decimal): Nueva tasa de venta.
+    """
+    from .models import CurrencyAlert, NotificationLog, ExchangeRateHistory
+    from django.contrib.auth.models import User
+    from django.core.mail import send_mail
+    from django.conf import settings
+
+    code = currency_code.upper()
+    
+    # Obtener historial anterior para detectar variación abrupta (excluyendo el que se acaba de crear)
+    histories = list(ExchangeRateHistory.objects.filter(currency_code=code).order_by('-timestamp')[:2])
+    previous_history = histories[1] if len(histories) > 1 else None
+    if previous_history:
+        old_buy = previous_history.buy_rate
+        old_sell = previous_history.sell_rate
+        if old_buy > 0:
+            buy_change_pct = abs((new_buy_rate - old_buy) / old_buy) * Decimal('100.0')
+            sell_change_pct = abs((new_sell_rate - old_sell) / old_sell) * Decimal('100.0') if old_sell > 0 else Decimal('0.0')
+            
+            # Si hay variación abrupta >= 1.5%
+            if buy_change_pct >= Decimal('1.5') or sell_change_pct >= Decimal('1.5'):
+                max_pct = max(buy_change_pct, sell_change_pct)
+                broadcast_msg = f"Variación abrupta detectada en {code}: {max_pct:.2f}% de cambio en la cotización de mercado."
+                
+                recipient_emails = list(User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True))
+                if recipient_emails:
+                    send_mail(
+                        f"¡Variación Abrupta en {code} ({max_pct:.2f}%)!",
+                        broadcast_msg,
+                        getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@globalexchange.com'),
+                        recipient_emails,
+                        fail_silently=True,
+                    )
+
+                all_users = User.objects.all()
+                for u in all_users:
+                    NotificationLog.objects.create(
+                        user=u,
+                        title=f"¡Variación Abrupta en {code} ({max_pct:.2f}%)!",
+                        message=broadcast_msg,
+                        notification_type='VARIACION_ABRUPTA',
+                        channel='PUSH'
+                    )
+
+    # Verificar alertas individuales (Criterio b: alcance o superación del valor objetivo)
+    active_alerts = CurrencyAlert.objects.filter(currency_code=code, is_active=True).select_related('cliente', 'user')
+    for alert in active_alerts:
+        market_rate = new_buy_rate if alert.condition_type == 'COMPRA' else new_sell_rate
+        if market_rate >= alert.target_rate:
+            alert.triggered = True
+            alert.save()
+            
+            msg = f"La cotización de mercado para {code} ({alert.condition_type}) alcanzó {market_rate:,.4f} Gs (su objetivo era {alert.target_rate:,.4f} Gs)."
+            
+            NotificationLog.objects.create(
+                cliente=alert.cliente,
+                user=alert.user,
+                title=f"¡Alerta de Tasa Alcanzada: {code}!",
+                message=msg,
+                notification_type='ALERTA_TASA',
+                channel=alert.notification_channel
+            )
+
+            if alert.notification_channel in ['EMAIL', 'AMBOS']:
+                recipients = set()
+                if alert.cliente and alert.cliente.email:
+                    recipients.add(alert.cliente.email)
+                if alert.user and alert.user.email:
+                    recipients.add(alert.user.email)
+                
+                try:
+                    from authentication.models import UsuarioClienteRelacion
+                    if alert.cliente:
+                        rels = UsuarioClienteRelacion.objects.filter(cliente=alert.cliente)
+                        for cr in rels:
+                            u_obj = User.objects.filter(profile__keycloak_id=cr.keycloak_user_id).first()
+                            if u_obj and u_obj.email:
+                                recipients.add(u_obj.email)
+                except Exception:
+                    pass
+
+                if recipients:
+                    send_mail(
+                        f"¡Alerta de Tasa Alcanzada: {code}!",
+                        msg,
+                        getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@globalexchange.com'),
+                        list(recipients),
+                        fail_silently=True,
+                    )
+
+
+@login_required
+def currency_alerts_view(request):
+    """
+    Vista de gestión de alertas de tasa de cambio para clientes (PSE-35).
+    
+    Permite:
+    1. Configurar nuevas alertas indicando divisa, tipo de tasa (compra/venta), tasa objetivo y canal para el cliente activo.
+    2. Consultar la lista de alertas vigentes del cliente.
+    3. Editar, activar/desactivar y eliminar alertas del cliente.
+    4. Visualizar notificaciones en vivo del cliente y marcarlas como leídas.
+    
+    Args:
+        request (HttpRequest): Solicitud HTTP del usuario autenticado.
+        
+    Returns:
+        HttpResponse: Página renderizada con el panel de alertas y notificaciones del cliente.
+    """
+    from .models import CurrencyAlert, NotificationLog, ExchangeRate
+    from authentication.models import Cliente
+
+    active_client = get_active_client(request.user, request=request)
+    if not active_client:
+        active_client, _ = Cliente.objects.get_or_create(
+            email=request.user.email or f"{request.user.username}@globalexchange.com",
+            defaults={
+                'nombre_o_razon_social': request.user.get_full_name() or request.user.username,
+                'documento_identidad': getattr(request.user.profile, 'ci_ruc', None) or '000000',
+                'tipo_cliente': 'FISICA',
+                'categoria': 'MINORISTA'
+            }
+        )
+
+    success_message = None
+    error_message = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        try:
+            if action == 'create_alert':
+                currency_code = request.POST.get('currency_code', '').strip().upper()
+                condition_type = request.POST.get('condition_type', 'COMPRA').strip().upper()
+                target_rate_str = request.POST.get('target_rate', '').strip()
+                notification_channel = request.POST.get('notification_channel', 'EMAIL').strip().upper()
+
+                if not currency_code or not target_rate_str:
+                    raise ValidationError("Divisa y tasa objetivo son obligatorios.")
+
+                target_rate = Decimal(target_rate_str)
+                if target_rate <= 0:
+                    raise ValidationError("La tasa objetivo debe ser mayor a cero.")
+
+                CurrencyAlert.objects.create(
+                    cliente=active_client,
+                    user=request.user,
+                    currency_code=currency_code,
+                    condition_type=condition_type,
+                    target_rate=target_rate,
+                    notification_channel=notification_channel,
+                    is_active=True
+                )
+                success_message = f"Alerta para {currency_code} ({condition_type} >= {target_rate:,.4f} Gs) creada exitosamente para {active_client.nombre_o_razon_social}."
+
+            elif action == 'toggle_alert':
+                alert_id = request.POST.get('alert_id')
+                alert = CurrencyAlert.objects.filter(id=alert_id, cliente=active_client).first()
+                if alert:
+                    alert.is_active = not alert.is_active
+                    alert.save()
+                    success_message = f"Estado de la alerta #{alert.id} actualizado correctamente."
+
+            elif action == 'edit_alert':
+                alert_id = request.POST.get('alert_id')
+                target_rate_str = request.POST.get('target_rate', '').strip()
+                notification_channel = request.POST.get('notification_channel', '').strip().upper()
+
+                alert = CurrencyAlert.objects.filter(id=alert_id, cliente=active_client).first()
+                if alert and target_rate_str:
+                    target_rate = Decimal(target_rate_str)
+                    if target_rate <= 0:
+                        raise ValidationError("La tasa objetivo debe ser mayor a cero.")
+                    alert.target_rate = target_rate
+                    if notification_channel:
+                        alert.notification_channel = notification_channel
+                    alert.save()
+                    success_message = f"Alerta #{alert.id} modificada exitosamente."
+
+            elif action == 'delete_alert':
+                alert_id = request.POST.get('alert_id')
+                CurrencyAlert.objects.filter(id=alert_id, cliente=active_client).delete()
+                success_message = f"Alerta eliminada exitosamente."
+
+            elif action == 'mark_read':
+                notif_id = request.POST.get('notification_id')
+                if notif_id:
+                    NotificationLog.objects.filter(models.Q(id=notif_id) & (models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True))).update(is_read=True)
+                else:
+                    NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).update(is_read=True)
+                success_message = "Notificaciones marcadas como leídas."
+
+        except ValidationError as e:
+            error_message = e.messages[0] if hasattr(e, 'messages') else str(e)
+        except Exception as e:
+            error_message = f"Error en la operación: {str(e)}"
+
+    alerts = CurrencyAlert.objects.filter(cliente=active_client).order_by('-created_at')
+    notifications = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True)).order_by('-created_at')[:30]
+    currencies = ExchangeRate.objects.all().order_by('currency_code')
+
+    context = {
+        'alerts': alerts,
+        'notifications': notifications,
+        'currencies': currencies,
+        'active_client': active_client,
+        'success_message': success_message,
+        'error_message': error_message,
+        'now': timezone.now(),
+    }
+    return render(request, 'tasas_cambio/currency_alerts.html', context)
 
 

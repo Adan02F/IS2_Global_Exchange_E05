@@ -37,7 +37,9 @@ services:
       - "8025:8025"
 
   web:
-    build: .
+    build:
+      context: .
+      target: development
     container_name: global-exchange-web
     command: ./entrypoint.sh
     volumes:
@@ -60,6 +62,8 @@ services:
       - KEYCLOAK_CLIENT_ID=global-exchange-client
       - KEYCLOAK_CLIENT_SECRET=ECkvAbkhWLaDzKAqBax3PWLNP1ybFDhg
       - KEYCLOAK_REDIRECT_URI=http://localhost:8000/auth/callback/
+      - EMAIL_HOST=mailpit
+      - EMAIL_PORT=1025
     depends_on:
       db:
         condition: service_healthy

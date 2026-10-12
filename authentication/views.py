@@ -343,6 +343,22 @@ def dashboard_redirect_view(request):
     Returns:
         HttpResponse: Renderiza la plantilla del panel correspondiente al rol con tasas y beneficios.
     """
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'mark_read':
+            notif_id = request.POST.get('notification_id')
+            try:
+                from tasas_cambio.models import NotificationLog
+                from tasas_cambio.views import get_active_client
+                active_client = get_active_client(request.user, request=request)
+                if notif_id:
+                    NotificationLog.objects.filter(models.Q(id=notif_id) & (models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True))).update(is_read=True)
+                else:
+                    NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).update(is_read=True)
+            except Exception:
+                pass
+            return redirect('dashboard_redirect')
+
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     role_name = profile.role.name.lower() if profile.role else 'individual'
 
@@ -419,12 +435,42 @@ def dashboard_redirect_view(request):
 
     user_mode = request.session.get('user_mode', False)
 
+    try:
+        from tasas_cambio.models import CurrencyAlert, NotificationLog
+        from integracion.models import PaymentGatewayLog
+        active_client = interface_ctx.get('active_client')
+        active_alerts_count = CurrencyAlert.objects.filter(cliente=active_client, is_active=True).count() if active_client else 0
+        unread_notifications = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).order_by('-created_at')[:5]
+        unread_notifications_count = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).count()
+        recent_gateway_logs = PaymentGatewayLog.objects.all().order_by('-timestamp')[:10]
+    except Exception:
+        active_alerts_count = 0
+        unread_notifications = []
+        unread_notifications_count = 0
+        recent_gateway_logs = []
+
+    active_turn_cajero = None
+    cajas_cajero = []
+    try:
+        from caja.models import TurnoCaja, Caja
+        active_turn_cajero = TurnoCaja.objects.filter(cajero=request.user, estado='ABIERTO').first()
+        if not active_turn_cajero:
+            cajas_cajero = Caja.objects.filter(activa=True, cajeros_asignados=request.user)
+    except Exception:
+        pass
+
     context = {
         'profile': profile,
         'rates': personalized_rates,
         'benefit_percentage': benefit_percentage,
         'benefit_label': benefit_label,
         'category_display': category_display,
+        'active_alerts_count': active_alerts_count,
+        'unread_notifications': unread_notifications,
+        'unread_notifications_count': unread_notifications_count,
+        'recent_gateway_logs': recent_gateway_logs,
+        'active_turn_cajero': active_turn_cajero,
+        'cajas_cajero': cajas_cajero,
         'now': timezone.now(),
         **interface_ctx,
     }

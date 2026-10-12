@@ -1,0 +1,91 @@
+# -*- coding: utf-8 -*-
+from django.contrib import admin
+from .models import (
+    Caja, TurnoCaja, DenominacionDivisa, DesgloseEfectivoCaja, 
+    DetalleDesgloseBillete, ArqueoCaja, BitacoraArqueo, OperacionVentanilla
+)
+
+@admin.register(Caja)
+class CajaAdmin(admin.ModelAdmin):
+    """
+    Administración de Cajas Físicas en Django Admin.
+    """
+    list_display = ('nombre', 'codigo', 'activa', 'get_cajeros_asignados')
+    search_fields = ('nombre', 'codigo')
+    list_filter = ('activa', )
+    filter_horizontal = ('cajeros_asignados',)
+
+    def get_cajeros_asignados(self, obj):
+        return ", ".join([u.username for u in obj.cajeros_asignados.all()])
+    get_cajeros_asignados.short_description = "Cajeros Asignados"
+
+
+@admin.register(TurnoCaja)
+class TurnoCajaAdmin(admin.ModelAdmin):
+    """
+    Administración de Turnos de Caja en Django Admin.
+    """
+    list_display = ('id', 'caja', 'cajero', 'fecha_apertura', 'fecha_cierre', 'estado')
+    list_filter = ('estado', 'caja', 'fecha_apertura')
+    search_fields = ('caja__nombre', 'cajero__username')
+
+
+@admin.register(DenominacionDivisa)
+class DenominacionDivisaAdmin(admin.ModelAdmin):
+    """
+    Administración de Denominaciones de Divisas (PSE-21).
+    """
+    list_display = ('divisa', 'valor_facial', 'nombre', 'activa')
+    list_filter = ('divisa', 'activa')
+    search_fields = ('divisa', 'nombre')
+
+
+@admin.register(DesgloseEfectivoCaja)
+class DesgloseEfectivoCajaAdmin(admin.ModelAdmin):
+    """
+    Administración de Desgloses de Efectivo de Caja (PSE-21).
+    """
+    list_display = ('id', 'turno', 'tipo_operacion', 'divisa', 'monto_total', 'fecha')
+    list_filter = ('tipo_operacion', 'divisa', 'fecha')
+    search_fields = ('turno__caja__nombre', 'turno__cajero__username', 'observacion')
+
+
+@admin.register(DetalleDesgloseBillete)
+class DetalleDesgloseBilleteAdmin(admin.ModelAdmin):
+    """
+    Administración de Detalles de Billetes en Desgloses (PSE-21).
+    """
+    list_display = ('id', 'desglose', 'denominacion', 'cantidad', 'subtotal')
+    list_filter = ('denominacion__divisa',)
+    search_fields = ('denominacion__nombre', 'desglose__turno__caja__nombre')
+
+
+@admin.register(ArqueoCaja)
+class ArqueoCajaAdmin(admin.ModelAdmin):
+    """
+    Administración de Arqueos de Caja Automáticos al Cierre (PSE-22).
+    """
+    list_display = ('id', 'turno', 'divisa', 'saldo_teorico', 'saldo_fisico_cierre', 'diferencia', 'estado_arqueo', 'fecha')
+    list_filter = ('estado_arqueo', 'divisa', 'fecha')
+    search_fields = ('turno__caja__nombre', 'turno__cajero__username')
+
+
+@admin.register(BitacoraArqueo)
+class BitacoraArqueoAdmin(admin.ModelAdmin):
+    """
+    Administración de Bitácora Histórica y Alertas de Arqueo (PSE-22).
+    """
+    list_display = ('id', 'turno', 'divisa', 'tipo_descuadre', 'monto_diferencia', 'administrador_notificado', 'fecha')
+    list_filter = ('tipo_descuadre', 'divisa', 'administrador_notificado', 'fecha')
+    search_fields = ('turno__caja__nombre', 'mensaje')
+
+
+@admin.register(OperacionVentanilla)
+class OperacionVentanillaAdmin(admin.ModelAdmin):
+    """
+    Administración de Operaciones de Ventanilla (PSE-38).
+    """
+    list_display = ('comprobante_numero', 'turno', 'cajero', 'cliente', 'tipo_operacion', 'moneda_origen', 'moneda_destino', 'monto_origen', 'total_a_cobrar_entregar', 'fecha')
+    list_filter = ('tipo_operacion', 'moneda_origen', 'moneda_destino', 'fecha')
+    search_fields = ('comprobante_numero', 'cliente__nombre_o_razon_social', 'cajero__username')
+

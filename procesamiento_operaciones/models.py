@@ -16,6 +16,7 @@ class CurrencyPurchaseTransaction(models.Model):
     Attributes:
         user (ForeignKey): Usuario solicitante.
         cliente (ForeignKey): Cliente asociado.
+        turno (ForeignKey): Turno de caja asociado.
         from_currency (CharField): Moneda de origen.
         to_currency (CharField): Moneda de destino.
         amount (DecimalField): Monto de origen.
@@ -34,6 +35,7 @@ class CurrencyPurchaseTransaction(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuario")
     cliente = models.ForeignKey(Cliente, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
+    turno = models.ForeignKey('caja.TurnoCaja', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_transactions', verbose_name="Turno de Caja")
     from_currency = models.CharField(max_length=10, verbose_name="Moneda Origen")
     to_currency = models.CharField(max_length=10, verbose_name="Moneda Destino")
     amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Monto Origen")
@@ -41,6 +43,9 @@ class CurrencyPurchaseTransaction(models.Model):
     applied_rate = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Aplicada")
     standard_rate = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Estándar")
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Método de Pago")
+    payment_method_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de Instrumento / Método de Pago")
+    gateway_reference = models.CharField(max_length=100, blank=True, null=True, verbose_name="Referencia de Pasarela")
+    gateway_status = models.CharField(max_length=30, blank=True, null=True, verbose_name="Estado de Pasarela")
     origin_acreditation_method = models.ForeignKey(ClientAccreditationMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_origins', verbose_name="Medio de Acreditación Origen")
     destination_acreditation_method = models.ForeignKey(ClientAccreditationMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_destinations', verbose_name="Medio de Acreditación Destino")
     benefit_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="Descuento por Perfil (%)")
@@ -110,6 +115,7 @@ class CurrencySaleTransaction(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuario")
     cliente = models.ForeignKey(Cliente, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
+    turno = models.ForeignKey('caja.TurnoCaja', on_delete=models.SET_NULL, null=True, blank=True, related_name='sale_transactions', verbose_name="Turno de Caja")
     from_currency = models.CharField(max_length=10, verbose_name="Moneda Origen")
     to_currency = models.CharField(max_length=10, default='PYG', verbose_name="Moneda Destino")
     amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Monto Origen")
@@ -117,6 +123,9 @@ class CurrencySaleTransaction(models.Model):
     applied_rate = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Aplicada")
     standard_rate = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Estándar")
     linked_account = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cuenta o Billetera Vinculada")
+    payment_method_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de Instrumento / Método de Pago")
+    gateway_reference = models.CharField(max_length=100, blank=True, null=True, verbose_name="Referencia de Pasarela")
+    gateway_status = models.CharField(max_length=30, blank=True, null=True, verbose_name="Estado de Pasarela")
     acreditation_method = models.ForeignKey(ClientAccreditationMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Medio de Acreditación del Cliente")
     origin_acreditation_method = models.ForeignKey(ClientAccreditationMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='sale_origins', verbose_name="Medio de Acreditación Origen")
     destination_acreditation_method = models.ForeignKey(ClientAccreditationMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='sale_destinations', verbose_name="Medio de Acreditación Destino")
