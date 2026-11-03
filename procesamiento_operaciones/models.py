@@ -74,6 +74,41 @@ class CurrencyPurchaseTransaction(models.Model):
         """Devuelve la representación en cadena de la transacción de compra."""
         return f"Compra #{self.id or 0}: {self.amount} {self.from_currency} -> {self.converted_amount} {self.to_currency} ({self.status})"
 
+    @property
+    def sifen_cdc(self):
+        """Extrae el CDC de la factura electrónica SIFEN desde el desglose transparente."""
+        if self.transparent_breakdown and "SIFEN CDC:" in self.transparent_breakdown:
+            parts = self.transparent_breakdown.split("SIFEN CDC:")
+            if len(parts) > 1:
+                return parts[1].split("|")[0].strip()
+        return None
+
+    @property
+    def sifen_estado(self):
+        """Estado de la factura electrónica (Emitida, Aprobada, Rechazada, Pendiente, En cola, Error)."""
+        if self.transparent_breakdown:
+            if "SIFEN Estado: Error" in self.transparent_breakdown:
+                return "Error"
+            if "SIFEN Estado: En cola" in self.transparent_breakdown and "SIFEN CDC:" not in self.transparent_breakdown:
+                return "En cola"
+            if "SIFEN Estado: Rechazada" in self.transparent_breakdown:
+                return "Rechazada"
+            if "SIFEN Estado: Aprobada" in self.transparent_breakdown:
+                return "Aprobada"
+            if "SIFEN Estado: Pendiente" in self.transparent_breakdown:
+                return "Pendiente"
+            if "SIFEN Estado: Emitida" in self.transparent_breakdown:
+                return "Emitida"
+        return "Emitida"
+
+    @property
+    def sifen_error(self):
+        """Devuelve el detalle del error de facturación SIFEN, o una cadena vacía si no hubo error."""
+        marca = "SIFEN Estado: Error"
+        if self.transparent_breakdown and marca in self.transparent_breakdown:
+            return self.transparent_breakdown.split(marca, 1)[1].split("|")[0].strip(" :")
+        return ""
+
     def save(self, *args, **kwargs):
         """
         Garantiza la inmutabilidad del registro transaccional. Una vez guardado en la base de datos,
@@ -81,7 +116,10 @@ class CurrencyPurchaseTransaction(models.Model):
         """
         if self.pk and self.__class__.objects.filter(pk=self.pk).exists():
             old_obj = self.__class__.objects.get(pk=self.pk)
-            if old_obj.status == 'PENDING' and self.status in ['SUCCESS', 'CANCELLED', 'FAILED']:
+            update_fields = kwargs.get('update_fields')
+            if update_fields and list(update_fields) == ['transparent_breakdown']:
+                pass
+            elif old_obj.status == 'PENDING' and self.status in ['SUCCESS', 'CANCELLED', 'FAILED']:
                 pass
             else:
                 raise ValidationError("Las transacciones de compra son registros inmutables y no pueden ser modificadas.")
@@ -155,6 +193,41 @@ class CurrencySaleTransaction(models.Model):
         """Devuelve la representación en cadena de la transacción de venta."""
         return f"Venta #{self.id or 0}: {self.amount} {self.from_currency} -> {self.converted_amount} {self.to_currency} ({self.status})"
 
+    @property
+    def sifen_cdc(self):
+        """Extrae el CDC de la factura electrónica SIFEN desde el desglose transparente."""
+        if self.transparent_breakdown and "SIFEN CDC:" in self.transparent_breakdown:
+            parts = self.transparent_breakdown.split("SIFEN CDC:")
+            if len(parts) > 1:
+                return parts[1].split("|")[0].strip()
+        return None
+
+    @property
+    def sifen_estado(self):
+        """Estado de la factura electrónica (Emitida, Aprobada, Rechazada, Pendiente, En cola, Error)."""
+        if self.transparent_breakdown:
+            if "SIFEN Estado: Error" in self.transparent_breakdown:
+                return "Error"
+            if "SIFEN Estado: En cola" in self.transparent_breakdown and "SIFEN CDC:" not in self.transparent_breakdown:
+                return "En cola"
+            if "SIFEN Estado: Rechazada" in self.transparent_breakdown:
+                return "Rechazada"
+            if "SIFEN Estado: Aprobada" in self.transparent_breakdown:
+                return "Aprobada"
+            if "SIFEN Estado: Pendiente" in self.transparent_breakdown:
+                return "Pendiente"
+            if "SIFEN Estado: Emitida" in self.transparent_breakdown:
+                return "Emitida"
+        return "Emitida"
+
+    @property
+    def sifen_error(self):
+        """Devuelve el detalle del error de facturación SIFEN, o una cadena vacía si no hubo error."""
+        marca = "SIFEN Estado: Error"
+        if self.transparent_breakdown and marca in self.transparent_breakdown:
+            return self.transparent_breakdown.split(marca, 1)[1].split("|")[0].strip(" :")
+        return ""
+
     def save(self, *args, **kwargs):
         """
         Garantiza la inmutabilidad del registro transaccional de venta.
@@ -162,9 +235,27 @@ class CurrencySaleTransaction(models.Model):
         """
         if self.pk and self.__class__.objects.filter(pk=self.pk).exists():
             old_obj = self.__class__.objects.get(pk=self.pk)
-            if old_obj.status == 'PENDING' and self.status in ['SUCCESS', 'CANCELLED', 'FAILED']:
+            update_fields = kwargs.get('update_fields')
+            if update_fields and list(update_fields) == ['transparent_breakdown']:
+                pass
+            elif old_obj.status == 'PENDING' and self.status in ['SUCCESS', 'CANCELLED', 'FAILED']:
                 pass
             else:
                 raise ValidationError("Las transacciones de venta son registros inmutables y no pueden ser modificadas.")
         super().save(*args, **kwargs)
+
+
+class SifenSecuencia(models.Model):
+    """
+    Numeracion de documentos electronicos por establecimiento/punto/tipo.
+    ultimo_numero es el ultimo aprobado por SIFEN; numero_en_proceso es el enviado que espera resultado.
+    """
+    clave = models.CharField(max_length=30, unique=True)  # ej: "001-003-1"
+    ultimo_numero = models.PositiveIntegerField(default=0)
+    numero_en_proceso = models.PositiveIntegerField(null=True, blank=True)
+    cdc_en_proceso = models.CharField(max_length=44, blank=True, default="")
+    reservado_en = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.clave}: {self.ultimo_numero}"
 
