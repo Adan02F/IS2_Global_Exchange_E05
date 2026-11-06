@@ -8,13 +8,18 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.conf import settings
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.db import models
 from decimal import Decimal
 from django.utils import timezone
 from .models import UserProfile, AuditLog, Role, Permission, CorporateGroup, GroupMembership, ClientRegistrationRequest, MemberRequest
 from tasas_cambio.models import ExchangeRate
 from gestion_clientes.views import get_user_interface_context
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, BasePermission
+from .facturacion_service import FacturaSeguraService
 
 def get_client_ip(request):
     """
@@ -248,8 +253,12 @@ def keycloak_callback_view(request):
         elif any(r in all_roles_lower for r in ['corporate', 'corporativo', 'empresa', 'jefe']):
             role_obj, _ = Role.objects.get_or_create(name="Corporate")
             is_corp = True
-        else:
+        elif 'cliente' in all_roles_lower:
             role_obj, _ = Role.objects.get_or_create(name="Cliente")
+        else:
+            # Usuario regular: sin rol hasta que el Administrador le asigne uno
+            # o se le apruebe una solicitud de cliente.
+            role_obj = None
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
         if kc_id:
@@ -349,12 +358,13 @@ def dashboard_redirect_view(request):
             notif_id = request.POST.get('notification_id')
             try:
                 from tasas_cambio.models import NotificationLog
-                from tasas_cambio.views import get_active_client
+                from tasas_cambio.views import get_active_client, notificaciones_visibles_q
                 active_client = get_active_client(request.user, request=request)
+                visibles = NotificationLog.objects.filter(notificaciones_visibles_q(request.user, active_client))
                 if notif_id:
-                    NotificationLog.objects.filter(models.Q(id=notif_id) & (models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True))).update(is_read=True)
+                    visibles.filter(id=notif_id).update(is_read=True)
                 else:
-                    NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).update(is_read=True)
+                    visibles.filter(is_read=False).update(is_read=True)
             except Exception:
                 pass
             return redirect('dashboard_redirect')
@@ -440,8 +450,10 @@ def dashboard_redirect_view(request):
         from integracion.models import PaymentGatewayLog
         active_client = interface_ctx.get('active_client')
         active_alerts_count = CurrencyAlert.objects.filter(cliente=active_client, is_active=True).count() if active_client else 0
-        unread_notifications = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).order_by('-created_at')[:5]
-        unread_notifications_count = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).count()
+        from tasas_cambio.views import notificaciones_visibles_q
+        unread_qs = NotificationLog.objects.filter(notificaciones_visibles_q(request.user, active_client), is_read=False)
+        unread_notifications = unread_qs.order_by('-created_at')[:5]
+        unread_notifications_count = unread_qs.count()
         recent_gateway_logs = PaymentGatewayLog.objects.all().order_by('-timestamp')[:10]
     except Exception:
         active_alerts_count = 0
@@ -693,3 +705,94 @@ def admin_audit_logs_view(request):
         'now': timezone.now(),
     }
     return render(request, 'authentication/admin_audit_logs.html', context)
+
+
+class SifenLoginAPIView(APIView):
+    """
+    API view para autenticarse en el servicio SIFEN (Factura Segura) y obtener el token.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        token = FacturaSeguraService.obtener_token(email, password)
+        if token:
+            return Response({"authentication_token": token}, status=status.HTTP_200_OK)
+        return Response({"error": "No se pudo autenticar con Factura Segura."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SifenGenerarDEAPIView(APIView):
+    """
+    API view para generar Documento Electrónico (DE) en SIFEN a partir de una transacción.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        auth_token = request.headers.get('Authentication-Token') or request.data.get('authentication_token')
+        if not auth_token:
+            return Response({"error": "Token de autenticación de SIFEN requerido."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        transaccion_data = request.data.get('transaccion_data', request.data)
+        resultado = FacturaSeguraService.generar_de(auth_token, transaccion_data)
+        return Response(resultado, status=status.HTTP_200_OK)
+
+
+class SifenEstadoAPIView(APIView):
+    """
+    API view para consultar el estado de un Documento Electrónico en SIFEN (get_estado_sifen).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        auth_token = request.headers.get('Authentication-Token') or request.data.get('authentication_token')
+        cdc = request.data.get('cdc')
+        d_ruc_em = request.data.get('dRucEm')
+        
+        if not auth_token or not cdc or not d_ruc_em:
+            return Response({"error": "Parámetros Authentication-Token, CDC y dRucEm son requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        resultado = FacturaSeguraService.get_estado_sifen(auth_token, cdc, d_ruc_em)
+        return Response(resultado, status=status.HTTP_200_OK)
+
+
+class SifenDownloadKudeAPIView(APIView):
+    """
+    API view para descargar el KuDE (PDF oficial) de SIFEN.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, cdc):
+        auth_token = request.headers.get('Authentication-Token') or request.query_params.get('authentication_token')
+        if not auth_token:
+            auth_token = FacturaSeguraService.obtener_token()
+        if not auth_token:
+            return Response({"error": "Token de autenticación de SIFEN requerido."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        pdf_content = FacturaSeguraService.descargar_kude(auth_token, cdc)
+        if pdf_content:
+            response = HttpResponse(pdf_content, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="kude_{cdc}.pdf"'
+            return response
+        return Response({"error": "No se pudo descargar el KuDE oficial desde SIFEN."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SifenDownloadXmlAPIView(APIView):
+    """
+    API view para descargar el XML firmado de SIFEN.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, cdc):
+        auth_token = request.headers.get('Authentication-Token') or request.query_params.get('authentication_token')
+        if not auth_token:
+            auth_token = FacturaSeguraService.obtener_token()
+        if not auth_token:
+            return Response({"error": "Token de autenticación de SIFEN requerido."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        xml_content = FacturaSeguraService.descargar_xml(auth_token, cdc)
+        if xml_content:
+            response = HttpResponse(xml_content, content_type='application/xml')
+            response['Content-Disposition'] = f'attachment; filename="de_{cdc}.xml"'
+            return response
+        return Response({"error": "No se pudo descargar el XML."}, status=status.HTTP_404_NOT_FOUND)

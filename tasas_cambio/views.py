@@ -9,8 +9,13 @@ from decimal import Decimal
 from datetime import timedelta
 import random
 import time
-from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion
+from urllib.parse import urlencode
+from django.urls import reverse
+from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion, ClientAccreditationMethod
 from .models import ExchangeRate, ExchangeRateHistory, ClientBenefitRule, PaymentMethod
+
+LIMITE_MINIMO_OPERACION_PYG = Decimal('50000.00')
+LIMITE_MAXIMO_OPERACION_PYG = Decimal('1000000000.00')
 
 def ensure_default_benefit_rules():
     """
@@ -422,6 +427,121 @@ class SimuladorConversionService:
             }
 
 
+def resolver_tipo_operacion(operacion, from_currency, to_currency):
+    """
+    Determina si una simulación corresponde a una compra o a una venta de divisas.
+
+    Args:
+        operacion (str): 'COMPRA', 'VENTA' o vacío para deducirla de las monedas.
+        from_currency (str): Código de la moneda que entrega el cliente.
+        to_currency (str): Código de la moneda que recibe el cliente.
+
+    Returns:
+        str: 'COMPRA' o 'VENTA'.
+
+    Raises:
+        ValidationError: Si las monedas son iguales o no corresponden a la operación indicada.
+    """
+    if from_currency == to_currency:
+        raise ValidationError("La moneda origen y la moneda destino deben ser distintas.")
+    if operacion == 'COMPRA' and to_currency == 'PYG':
+        raise ValidationError("Para simular una compra, la moneda destino debe ser una divisa extranjera.")
+    if operacion == 'VENTA' and from_currency == 'PYG':
+        raise ValidationError("Para simular una venta, la moneda origen debe ser una divisa extranjera.")
+    if operacion in ('COMPRA', 'VENTA'):
+        return operacion
+    return 'VENTA' if to_currency == 'PYG' else 'COMPRA'
+
+
+def _validar_limites_operacion(simulation_result):
+    """
+    Evalúa si el resultado de una simulación respeta los límites operativos en guaraníes.
+
+    Usa la misma equivalencia que los servicios de compra y venta: el monto en PYG
+    o, para otra divisa, su valor según la tasa de compra con el beneficio aplicado.
+
+    Args:
+        simulation_result (dict): Resultado de SimuladorConversionService.simular.
+
+    Returns:
+        str or None: Mensaje del límite incumplido, o None si el monto es operable.
+    """
+    equivalent_pyg = simulation_result['amount']
+    if simulation_result['from_currency'] != 'PYG':
+        buy_rate = ExchangeRate.objects.get(currency_code=simulation_result['from_currency']).buy_rate
+        benefit = simulation_result['benefit_percentage']
+        equivalent_pyg *= buy_rate * (Decimal('1.00') + (benefit / Decimal('100.00')))
+
+    if equivalent_pyg < LIMITE_MINIMO_OPERACION_PYG:
+        return f"El monto equivale a ₲ {equivalent_pyg:,.2f} y el mínimo para operar es ₲ {LIMITE_MINIMO_OPERACION_PYG:,.0f}."
+    if equivalent_pyg > LIMITE_MAXIMO_OPERACION_PYG:
+        return f"El monto equivale a ₲ {equivalent_pyg:,.2f} y el máximo para operar es ₲ {LIMITE_MAXIMO_OPERACION_PYG:,.0f}."
+    return None
+
+
+def construir_propuesta_operacion(simulation_result, operacion, request):
+    """
+    Prepara la acción que el simulador ofrece para ejecutar la operación simulada.
+
+    Args:
+        simulation_result (dict): Resultado de SimuladorConversionService.simular.
+        operacion (str): 'COMPRA' o 'VENTA'.
+        request (HttpRequest): Solicitud actual, usada para conocer usuario y cliente activo.
+
+    Returns:
+        dict: Tipo y etiqueta de la operación, junto con la URL que la abre precargada
+        ('url') o el motivo por el que aún no se puede operar ('bloqueo') y un enlace
+        para resolverlo ('enlace_url', 'enlace_texto').
+    """
+    propuesta = {
+        'tipo': operacion,
+        'etiqueta': 'Compra' if operacion == 'COMPRA' else 'Venta',
+        'url': None,
+        'bloqueo': None,
+        'enlace_url': None,
+        'enlace_texto': None,
+    }
+
+    limit_error = _validar_limites_operacion(simulation_result)
+    if limit_error:
+        propuesta['bloqueo'] = limit_error
+        return propuesta
+
+    user = request.user
+    if not user.is_authenticated:
+        propuesta['bloqueo'] = "Inicie sesión para realizar esta operación."
+        propuesta['enlace_url'] = reverse('login')
+        propuesta['enlace_texto'] = 'Iniciar sesión'
+        return propuesta
+
+    if is_user_analyst(user, request):
+        propuesta['bloqueo'] = "El rol Analista no tiene permisos para realizar operaciones."
+        return propuesta
+
+    client = get_active_client(user, request)
+    if not client:
+        propuesta['bloqueo'] = "Seleccione un cliente activo desde su panel para realizar esta operación."
+        propuesta['enlace_url'] = '/auth/dashboard/'
+        propuesta['enlace_texto'] = 'Ir al panel'
+        return propuesta
+
+    if not ClientAccreditationMethod.objects.filter(cliente=client).exists():
+        propuesta['bloqueo'] = "Registre un medio de acreditación para realizar esta operación."
+        propuesta['enlace_url'] = reverse('client_acreditation_methods')
+        propuesta['enlace_texto'] = 'Registrar medio'
+        return propuesta
+
+    url_name = 'currency_purchase' if operacion == 'COMPRA' else 'currency_sale'
+    query = urlencode({
+        'from_currency': simulation_result['from_currency'],
+        'to_currency': simulation_result['to_currency'],
+        'amount': simulation_result['amount'],
+        'desde_simulador': '1',
+    })
+    propuesta['url'] = f"{reverse(f'procesamiento_operaciones:{url_name}')}?{query}"
+    return propuesta
+
+
 def currency_simulator_view(request):
     """
     Vista web para el simulador de conversión de divisas (PSE-11).
@@ -442,13 +562,20 @@ def currency_simulator_view(request):
 
     currencies = ExchangeRate.objects.all().order_by('currency_code')
     simulation_result = None
+    operation_proposal = None
     error_message = None
 
-    from_currency = request.GET.get('from_currency', 'PYG')
-    to_currency = request.GET.get('to_currency', 'USD')
-    amount_str = request.GET.get('amount', '100000')
+    requested_operation = request.GET.get('operation', '').upper()
+    if requested_operation == 'VENTA':
+        default_from, default_to, default_amount = 'USD', 'PYG', '100'
+    else:
+        default_from, default_to, default_amount = 'PYG', 'USD', '100000'
+    from_currency = request.GET.get('from_currency', default_from)
+    to_currency = request.GET.get('to_currency', default_to)
+    amount_str = request.GET.get('amount', default_amount)
 
     if request.method == 'POST':
+        requested_operation = request.POST.get('operation', '').upper()
         from_currency = request.POST.get('from_currency')
         to_currency = request.POST.get('to_currency')
         amount_str = request.POST.get('amount')
@@ -456,7 +583,8 @@ def currency_simulator_view(request):
         try:
             if not from_currency or not to_currency or not amount_str:
                 raise ValidationError("Todos los campos (moneda origen, moneda destino y monto) son obligatorios.")
-            
+
+            operation = resolver_tipo_operacion(requested_operation, from_currency, to_currency)
             simulation_result = SimuladorConversionService.simular(
                 from_currency=from_currency,
                 to_currency=to_currency,
@@ -464,6 +592,7 @@ def currency_simulator_view(request):
                 user=request.user,
                 request=request
             )
+            operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
         except ValidationError as e:
             error_message = e.messages[0] if hasattr(e, 'messages') else str(e)
         except Exception as e:
@@ -471,6 +600,7 @@ def currency_simulator_view(request):
     else:
         if request.GET.get('amount'):
             try:
+                operation = resolver_tipo_operacion(requested_operation, from_currency, to_currency)
                 simulation_result = SimuladorConversionService.simular(
                     from_currency=from_currency,
                     to_currency=to_currency,
@@ -478,6 +608,7 @@ def currency_simulator_view(request):
                     user=request.user,
                     request=request
                 )
+                operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
             except ValidationError as e:
                 error_message = e.messages[0] if hasattr(e, 'messages') else str(e)
             except Exception:
@@ -528,6 +659,11 @@ def currency_simulator_view(request):
         'to_currency': to_currency,
         'amount': amount_str,
         'simulation_result': simulation_result,
+        'operation_proposal': operation_proposal,
+        'selected_operation': operation_proposal['tipo'] if operation_proposal else (
+            requested_operation if requested_operation in ('COMPRA', 'VENTA')
+            else ('VENTA' if to_currency == 'PYG' else 'COMPRA')
+        ),
         'error_message': error_message,
         'user_profile': user_profile,
         'benefit_percentage': benefit_percentage,
@@ -1044,6 +1180,54 @@ def rates_manager_view(request):
     return render(request, 'tasas_cambio/rates_manager.html', context)
 
 
+def notificaciones_visibles_q(user, active_client):
+    """
+    Construye el filtro de notificaciones en pantalla visibles para un usuario según el cliente activo (PSE-35).
+
+    Reglas:
+        * Alertas por objetivo (``ALERTA_TASA``): pertenecen al cliente; solo se ven en la pantalla de ese
+          cliente y únicamente si el canal configurado incluye pantalla (``PUSH`` o ``AMBOS``).
+        * Variación abrupta (``VARIACION_ABRUPTA``) y notificaciones personales: dirigidas al usuario
+          (``user``) sin cliente; se ven en cualquier pantalla de ese usuario.
+        * Notificaciones generales (sin cliente ni usuario): visibles para todos.
+
+    Args:
+        user (User): Usuario autenticado.
+        active_client (Cliente | None): Cliente activo (``None`` en modo usuario).
+
+    Returns:
+        Q: Filtro a aplicar sobre ``NotificationLog``.
+    """
+    q = models.Q(user=user, cliente__isnull=True) | models.Q(cliente__isnull=True, user__isnull=True)
+    if active_client is not None:
+        q |= models.Q(cliente=active_client)
+    return q & ~models.Q(notification_type='ALERTA_TASA', channel='EMAIL')
+
+
+def destinatarios_email_cliente(cliente):
+    """
+    Obtiene los correos del cliente y de todos los usuarios asociados a ese cliente.
+
+    Args:
+        cliente (Cliente): Cliente destinatario.
+
+    Returns:
+        set[str]: Correos electrónicos únicos.
+    """
+    from django.contrib.auth.models import User
+    recipients = set()
+    if cliente.email:
+        recipients.add(cliente.email)
+    for kc_uid in UsuarioClienteRelacion.objects.filter(cliente=cliente).values_list('keycloak_user_id', flat=True):
+        q = models.Q(profile__keycloak_id=kc_uid) | models.Q(username=kc_uid)
+        if str(kc_uid).isdigit():
+            q |= models.Q(id=int(kc_uid))
+        for email in User.objects.filter(q).exclude(email='').values_list('email', flat=True):
+            if email:
+                recipients.add(email)
+    return recipients
+
+
 def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
     """
     Verifica y dispara alertas de tasa configuradas por usuarios (PSE-35),
@@ -1076,7 +1260,9 @@ def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
                 max_pct = max(buy_change_pct, sell_change_pct)
                 broadcast_msg = f"Variación abrupta detectada en {code}: {max_pct:.2f}% de cambio en la cotización de mercado."
                 
-                recipient_emails = list(User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True))
+                recipient_emails = set(User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True))
+                recipient_emails.update(Cliente.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True))
+                recipient_emails = sorted(recipient_emails)
                 if recipient_emails:
                     send_mail(
                         f"¡Variación Abrupta en {code} ({max_pct:.2f}%)!",
@@ -1097,18 +1283,23 @@ def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
                     )
 
     # Verificar alertas individuales (Criterio b: alcance o superación del valor objetivo)
-    active_alerts = CurrencyAlert.objects.filter(currency_code=code, is_active=True).select_related('cliente', 'user')
+    active_alerts = CurrencyAlert.objects.filter(
+        currency_code=code, is_active=True, triggered=False
+    ).select_related('cliente', 'user')
     for alert in active_alerts:
         market_rate = new_buy_rate if alert.condition_type == 'COMPRA' else new_sell_rate
         if market_rate >= alert.target_rate:
+            # Se dispara una sola vez; se rearma al editarla o reactivarla.
             alert.triggered = True
             alert.save()
-            
+
             msg = f"La cotización de mercado para {code} ({alert.condition_type}) alcanzó {market_rate:,.4f} Gs (su objetivo era {alert.target_rate:,.4f} Gs)."
-            
+
+            # Registro de la notificación: pertenece solo al cliente de la alerta
+            # (no aparece en la pantalla de otros clientes del mismo usuario).
             NotificationLog.objects.create(
                 cliente=alert.cliente,
-                user=alert.user,
+                user=None if alert.cliente else alert.user,
                 title=f"¡Alerta de Tasa Alcanzada: {code}!",
                 message=msg,
                 notification_type='ALERTA_TASA',
@@ -1116,29 +1307,17 @@ def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
             )
 
             if alert.notification_channel in ['EMAIL', 'AMBOS']:
-                recipients = set()
-                if alert.cliente and alert.cliente.email:
-                    recipients.add(alert.cliente.email)
-                if alert.user and alert.user.email:
-                    recipients.add(alert.user.email)
-                
-                try:
-                    from authentication.models import UsuarioClienteRelacion
-                    if alert.cliente:
-                        rels = UsuarioClienteRelacion.objects.filter(cliente=alert.cliente)
-                        for cr in rels:
-                            u_obj = User.objects.filter(profile__keycloak_id=cr.keycloak_user_id).first()
-                            if u_obj and u_obj.email:
-                                recipients.add(u_obj.email)
-                except Exception:
-                    pass
+                if alert.cliente:
+                    recipients = destinatarios_email_cliente(alert.cliente)
+                else:
+                    recipients = {alert.user.email} if alert.user and alert.user.email else set()
 
                 if recipients:
                     send_mail(
                         f"¡Alerta de Tasa Alcanzada: {code}!",
                         msg,
                         getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@globalexchange.com'),
-                        list(recipients),
+                        sorted(recipients),
                         fail_silently=True,
                     )
 
@@ -1163,17 +1342,9 @@ def currency_alerts_view(request):
     from .models import CurrencyAlert, NotificationLog, ExchangeRate
     from authentication.models import Cliente
 
+    # Las alertas por objetivo pertenecen a un cliente: sin cliente activo (modo usuario)
+    # no se crea ningún cliente, solo se muestran las notificaciones personales/generales.
     active_client = get_active_client(request.user, request=request)
-    if not active_client:
-        active_client, _ = Cliente.objects.get_or_create(
-            email=request.user.email or f"{request.user.username}@globalexchange.com",
-            defaults={
-                'nombre_o_razon_social': request.user.get_full_name() or request.user.username,
-                'documento_identidad': getattr(request.user.profile, 'ci_ruc', None) or '000000',
-                'tipo_cliente': 'FISICA',
-                'categoria': 'MINORISTA'
-            }
-        )
 
     success_message = None
     error_message = None
@@ -1181,6 +1352,9 @@ def currency_alerts_view(request):
     if request.method == 'POST':
         action = request.POST.get('action')
         try:
+            if action in ('create_alert', 'toggle_alert', 'edit_alert', 'delete_alert') and not active_client:
+                raise ValidationError("Debe operar como cliente para gestionar alertas de tasa.")
+
             if action == 'create_alert':
                 currency_code = request.POST.get('currency_code', '').strip().upper()
                 condition_type = request.POST.get('condition_type', 'COMPRA').strip().upper()
@@ -1210,6 +1384,8 @@ def currency_alerts_view(request):
                 alert = CurrencyAlert.objects.filter(id=alert_id, cliente=active_client).first()
                 if alert:
                     alert.is_active = not alert.is_active
+                    if alert.is_active:
+                        alert.triggered = False
                     alert.save()
                     success_message = f"Estado de la alerta #{alert.id} actualizado correctamente."
 
@@ -1224,6 +1400,7 @@ def currency_alerts_view(request):
                     if target_rate <= 0:
                         raise ValidationError("La tasa objetivo debe ser mayor a cero.")
                     alert.target_rate = target_rate
+                    alert.triggered = False
                     if notification_channel:
                         alert.notification_channel = notification_channel
                     alert.save()
@@ -1236,10 +1413,11 @@ def currency_alerts_view(request):
 
             elif action == 'mark_read':
                 notif_id = request.POST.get('notification_id')
+                visibles = NotificationLog.objects.filter(notificaciones_visibles_q(request.user, active_client))
                 if notif_id:
-                    NotificationLog.objects.filter(models.Q(id=notif_id) & (models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True))).update(is_read=True)
+                    visibles.filter(id=notif_id).update(is_read=True)
                 else:
-                    NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True), is_read=False).update(is_read=True)
+                    visibles.filter(is_read=False).update(is_read=True)
                 success_message = "Notificaciones marcadas como leídas."
 
         except ValidationError as e:
@@ -1247,8 +1425,8 @@ def currency_alerts_view(request):
         except Exception as e:
             error_message = f"Error en la operación: {str(e)}"
 
-    alerts = CurrencyAlert.objects.filter(cliente=active_client).order_by('-created_at')
-    notifications = NotificationLog.objects.filter(models.Q(cliente=active_client) | models.Q(user=request.user) | models.Q(cliente__isnull=True, user__isnull=True)).order_by('-created_at')[:30]
+    alerts = CurrencyAlert.objects.filter(cliente=active_client).order_by('-created_at') if active_client else CurrencyAlert.objects.none()
+    notifications = NotificationLog.objects.filter(notificaciones_visibles_q(request.user, active_client)).order_by('-created_at')[:30]
     currencies = ExchangeRate.objects.all().order_by('currency_code')
 
     context = {
