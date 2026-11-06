@@ -25,6 +25,8 @@ class RateAlertsPSE35Tests(TestCase):
         self.admin_user = User.objects.create_superuser(username='admin_pse35', password='password123')
         self.client_user = User.objects.create_user(username='client_pse35', email='client_pse35@test.com', password='password123')
         self.client_profile, _ = UserProfile.objects.get_or_create(user=self.client_user)
+        self.client_profile.keycloak_id = "kc_client_pse35"
+        self.client_profile.save()
 
         self.cliente = Cliente.objects.create(
             nombre_o_razon_social="Cliente Test PSE35",
