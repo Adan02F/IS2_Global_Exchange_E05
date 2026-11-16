@@ -441,69 +441,6 @@
     }
   },
   "groups": [
-    {
-      "id": "3f701b36-b6c3-4d17-bbe4-165dffc25d59",
-      "name": "Adidas (987124-1)",
-      "path": "/Adidas (987124-1)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "0934867e-fdf1-4a42-8a50-fa6c2cba56fd",
-      "name": "Adriana (1234513)",
-      "path": "/Adriana (1234513)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "b40e355b-0588-4455-b7f7-33dc86dd8356",
-      "name": "NIKE (345634-2)",
-      "path": "/NIKE (345634-2)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "5a7233ef-b69b-475f-a66e-51a30a0cf2c8",
-      "name": "PUMA (54321-9)",
-      "path": "/PUMA (54321-9)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "e4070412-fe59-45d0-834b-e59e1c573f6e",
-      "name": "adidas@gmail.com (987124-1)",
-      "path": "/adidas@gmail.com (987124-1)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "cf7db0b3-d326-4d18-b8f3-ec0a00650f2e",
-      "name": "empresa_sa (80012345-6)",
-      "path": "/empresa_sa (80012345-6)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    },
-    {
-      "id": "31b57c43-3717-4999-95f0-a0c756fe822f",
-      "name": "nike@gmail.com (345634-2)",
-      "path": "/nike@gmail.com (345634-2)",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
-    }
   ],
   "defaultRole": {
     "id": "bb76a773-6670-40fb-a8e2-888b9fae9b01",
@@ -787,7 +724,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "govQPT0CppZDdLm98GLYnrqbLzWcqPLQ",
+      "secret": "ECkvAbkhWLaDzKAqBax3PWLNP1ybFDhg",
       "redirectUris": [
         "http://localhost:8000/auth/callback/"
       ],
