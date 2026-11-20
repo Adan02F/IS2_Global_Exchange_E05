@@ -474,3 +474,157 @@ class OperacionVentanilla(models.Model):
     def __str__(self):
         """Devuelve la representación en cadena de la operación de ventanilla."""
         return f"Ventanilla #{self.comprobante_numero} - {self.tipo_operacion}: {self.monto_origen} {self.moneda_origen} -> {self.monto_destino} {self.moneda_destino}"
+
+
+class TerminalAutoservicio(models.Model):
+    """
+    Terminal de autoservicio (TAUser) para operaciones en efectivo ("metálico") sin cajero.
+
+    El cliente genera un código de operación desde la web y en la terminal deposita y retira
+    billetes. La terminal tiene su propio stock de billetes por denominación.
+
+    Attributes:
+        codigo (CharField): Código único de la terminal (ej. T01). Forma parte de su URL.
+        nombre (CharField): Nombre descriptivo.
+        ubicacion (CharField): Sucursal o dirección donde está instalada.
+        activa (BooleanField): Una terminal inactiva no acepta operaciones.
+    """
+    codigo = models.CharField(max_length=20, unique=True, verbose_name="Código")
+    nombre = models.CharField(max_length=100, verbose_name="Nombre")
+    ubicacion = models.CharField(max_length=200, blank=True, default='', verbose_name="Ubicación")
+    activa = models.BooleanField(default=True, verbose_name="Activa")
+
+    class Meta:
+        verbose_name = "Terminal de Autoservicio"
+        verbose_name_plural = "Terminales de Autoservicio"
+        ordering = ['codigo']
+
+    def __str__(self):
+        """Devuelve la representación en cadena de la terminal."""
+        return f"{self.nombre} ({self.codigo})"
+
+
+class StockBilleteTerminal(models.Model):
+    """
+    Cantidad de billetes de una denominación disponibles dentro de una terminal de autoservicio.
+
+    Attributes:
+        terminal (TerminalAutoservicio): Terminal a la que pertenece el stock.
+        denominacion (DenominacionDivisa): Denominación del billete.
+        cantidad (PositiveIntegerField): Billetes disponibles.
+    """
+    terminal = models.ForeignKey(TerminalAutoservicio, on_delete=models.CASCADE, related_name='stock', verbose_name="Terminal")
+    denominacion = models.ForeignKey(DenominacionDivisa, on_delete=models.CASCADE, verbose_name="Denominación")
+    cantidad = models.PositiveIntegerField(default=0, verbose_name="Cantidad de Billetes")
+
+    class Meta:
+        verbose_name = "Stock de Billetes de Terminal"
+        verbose_name_plural = "Stock de Billetes de Terminales"
+        unique_together = ('terminal', 'denominacion')
+        ordering = ['denominacion__divisa', '-denominacion__valor_facial']
+
+    def __str__(self):
+        """Devuelve la representación en cadena del stock."""
+        return f"{self.terminal.codigo}: {self.cantidad} x {self.denominacion.nombre}"
+
+
+class OperacionTerminal(models.Model):
+    """
+    Operación en efectivo generada por el cliente desde la web y completada en una terminal de autoservicio.
+
+    Tipos (mismo criterio que la ventanilla, desde el punto de vista de la casa de cambios):
+
+    * ``COMPRA``: la casa compra divisas. El cliente deposita divisa extranjera y recibe Guaraníes.
+    * ``VENTA``: la casa vende divisas. El cliente deposita Guaraníes y recibe divisa extranjera.
+
+    Attributes:
+        codigo (CharField): Código numérico de 8 dígitos que el cliente ingresa en la terminal.
+        cliente (Cliente): Cliente que generó la operación.
+        usuario (User): Usuario que la generó desde la web.
+        terminal (TerminalAutoservicio): Terminal donde se completó (vacía mientras está pendiente).
+        tipo_operacion (CharField): ``COMPRA`` o ``VENTA``.
+        moneda_origen (CharField): Moneda que deposita el cliente.
+        moneda_destino (CharField): Moneda que recibe el cliente.
+        monto_origen (DecimalField): Monto a depositar (en billetes).
+        monto_destino (DecimalField): Monto a entregar (en billetes).
+        tasa_aplicada (DecimalField): Tasa de la cotización.
+        tasa_estandar (DecimalField): Tasa sin beneficio por categoría.
+        benefit_percentage (DecimalField): Beneficio por categoría aplicado.
+        comision (DecimalField): Comisión de la operación (en la moneda de origen).
+        valor_pyg (DecimalField): Valor de la operación en Guaraníes (auditoría).
+        redondeo_pyg (DecimalField): Ajuste a billetes de Guaraníes (siempre menor al billete más chico).
+        estado (CharField): PENDIENTE, COMPLETADA, CANCELADA o VENCIDA.
+        expira_en (DateTimeField): Vencimiento del código.
+        efectivo_depositado (DecimalField): Total depositado en la terminal.
+        vuelto (DecimalField): Vuelto entregado en la moneda de origen.
+        billetes_depositados (JSONField): Detalle {valor_facial: cantidad} de lo depositado.
+        billetes_entregados (JSONField): Detalle {moneda: {valor_facial: cantidad}} de lo entregado.
+        motivo_cancelacion (CharField): Motivo si se canceló.
+        creado_en (DateTimeField): Fecha de generación.
+        completado_en (DateTimeField): Fecha en que se completó en la terminal.
+    """
+    PENDIENTE = 'PENDIENTE'
+    COMPLETADA = 'COMPLETADA'
+    CANCELADA = 'CANCELADA'
+    VENCIDA = 'VENCIDA'
+    ESTADO_CHOICES = [
+        (PENDIENTE, 'Pendiente de completar en terminal'),
+        (COMPLETADA, 'Completada'),
+        (CANCELADA, 'Cancelada'),
+        (VENCIDA, 'Vencida'),
+    ]
+    TIPO_OPERACION_CHOICES = OperacionVentanilla.TIPO_OPERACION_CHOICES
+
+    codigo = models.CharField(max_length=8, db_index=True, verbose_name="Código de Operación")
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='operaciones_terminal', verbose_name="Cliente")
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuario")
+    terminal = models.ForeignKey(TerminalAutoservicio, on_delete=models.SET_NULL, null=True, blank=True, related_name='operaciones', verbose_name="Terminal")
+    tipo_operacion = models.CharField(max_length=20, choices=TIPO_OPERACION_CHOICES, verbose_name="Tipo de Operación")
+    moneda_origen = models.CharField(max_length=10, verbose_name="Moneda a Depositar")
+    moneda_destino = models.CharField(max_length=10, verbose_name="Moneda a Recibir")
+    monto_origen = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Monto a Depositar")
+    monto_destino = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Monto a Recibir")
+    tasa_aplicada = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Aplicada")
+    tasa_estandar = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="Tasa Estándar")
+    benefit_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), verbose_name="Beneficio por Categoría (%)")
+    comision = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'), verbose_name="Comisión")
+    valor_pyg = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'), verbose_name="Valor en PYG")
+    redondeo_pyg = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), verbose_name="Redondeo a Billetes (PYG)")
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=PENDIENTE, verbose_name="Estado")
+    expira_en = models.DateTimeField(verbose_name="Vence")
+    efectivo_depositado = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'), verbose_name="Efectivo Depositado")
+    vuelto = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'), verbose_name="Vuelto")
+    billetes_depositados = models.JSONField(default=dict, blank=True, verbose_name="Billetes Depositados")
+    billetes_entregados = models.JSONField(default=dict, blank=True, verbose_name="Billetes Entregados")
+    motivo_cancelacion = models.CharField(max_length=200, blank=True, default='', verbose_name="Motivo de Cancelación")
+    creado_en = models.DateTimeField(auto_now_add=True, verbose_name="Generada")
+    completado_en = models.DateTimeField(null=True, blank=True, verbose_name="Completada")
+
+    class Meta:
+        verbose_name = "Operación de Terminal de Autoservicio"
+        verbose_name_plural = "Operaciones de Terminal de Autoservicio"
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        """Devuelve la representación en cadena de la operación."""
+        return f"TAUser {self.codigo} - {self.tipo_operacion}: {self.monto_origen} {self.moneda_origen} -> {self.monto_destino} {self.moneda_destino} ({self.estado})"
+
+    @property
+    def divisa_extranjera(self):
+        """Divisa extranjera de la operación (la que no es PYG)."""
+        return self.moneda_origen if self.moneda_origen != 'PYG' else self.moneda_destino
+
+    @property
+    def tasa_final(self):
+        """
+        Guaraníes por unidad de divisa que efectivamente resultan de la operación (comisión incluida).
+
+        Es la tasa que se muestra al cliente: la comisión va dentro del precio y no se informa aparte.
+        """
+        if self.moneda_origen == 'PYG':
+            guaranies, divisa = self.monto_origen, self.monto_destino
+        else:
+            guaranies, divisa = self.monto_destino, self.monto_origen
+        if not divisa:
+            return self.tasa_aplicada
+        return guaranies / divisa

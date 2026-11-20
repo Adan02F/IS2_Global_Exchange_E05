@@ -110,7 +110,8 @@ class CurrencyPurchasePSE31Tests(TestCase):
         )
 
         self.assertEqual(tx.status, 'PENDING')
-        self.assertEqual(tx.applied_rate, Decimal('7450.0000'))
+        # Tasa de venta 7.450 con la comisión + IVA (0,55 %) incluida: 7.450 / 0,9945.
+        self.assertEqual(tx.applied_rate, Decimal('7491.2016'))
         
         # Verificar que el saldo del método de pago NO ha cambiado (sin débito en estado pendiente)
         self.pm.refresh_from_db()

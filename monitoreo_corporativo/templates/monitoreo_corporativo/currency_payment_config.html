@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Inter', sans-serif; }</style>
+    {% include "authentication/_responsive.html" %}
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 flex flex-col justify-between">
     <!-- Navbar -->
@@ -47,26 +48,7 @@
         </div>
 
         <!-- Success Message -->
-        {% if success_message %}
-        <div class="bg-green-50 border-l-4 border-green-600 p-4 rounded-xl shadow-sm flex items-start space-x-3">
-            <div class="flex-shrink-0 text-green-600 font-bold text-lg">✅</div>
-            <div>
-                <h3 class="text-sm font-bold text-green-800">Operación Exitosa</h3>
-                <p class="text-xs text-green-700 mt-1">{{ success_message }}</p>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Error Message -->
-        {% if error_message %}
-        <div class="bg-red-50 border-l-4 border-red-600 p-4 rounded-xl shadow-sm flex items-start space-x-3">
-            <div class="flex-shrink-0 text-red-600 font-bold text-lg">⚠️</div>
-            <div>
-                <h3 class="text-sm font-bold text-red-800">Error de Validación</h3>
-                <p class="text-xs text-red-700 mt-1">{{ error_message }}</p>
-            </div>
-        </div>
-        {% endif %}
+        {% include "authentication/_notificaciones.html" %}
 
         <!-- ================= SECTION 1: CURRENCIES CRUD ================= -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -292,6 +274,7 @@
                                     {% if pm.holder_name %}
                                     <p><span class="font-semibold text-slate-500">Titular:</span> {{ pm.holder_name }}</p>
                                     {% endif %}
+                                    <p><span class="font-semibold text-slate-500">Saldo disponible:</span> <strong class="font-mono text-emerald-700">PYG {{ pm.balance|floatformat:2 }}</strong></p>
                                 </div>
                                 <p class="text-xs text-slate-600 mt-2">{{ pm.description|default:"Sin descripción adicional." }}</p>
                                 <p class="text-[10px] text-slate-400 font-mono mt-1">Código: {{ pm.code }}</p>

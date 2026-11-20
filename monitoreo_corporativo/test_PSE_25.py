@@ -101,11 +101,12 @@ class ParametrizacionDivisasMetodosPSE25Tests(TestCase):
 
     def test_admin_permission_restriction(self):
         """
-        Valida que únicamente los usuarios administradores puedan acceder al panel CRUD de parametrización.
+        Valida que únicamente los usuarios con el permiso «Parametrizar Divisas y Métodos de Pago»
+        accedan al panel CRUD; el resto vuelve a su panel con una notificación.
         """
         self.client.force_login(self.client_user)
         response_client = self.client.get(self.config_url)
-        self.assertRedirects(response_client, self.rates_url)
+        self.assertRedirects(response_client, reverse('dashboard_redirect'), fetch_redirect_response=False)
 
         self.client.force_login(self.admin_user)
         response_admin = self.client.get(self.config_url)
@@ -154,3 +155,27 @@ class ParametrizacionDivisasMetodosPSE25Tests(TestCase):
         })
         self.assertEqual(resp_del_curr.status_code, 200)
         self.assertFalse(ExchangeRate.objects.filter(currency_code='CLP').exists())
+
+    def test_eliminar_metodo_predeterminado_no_reaparece(self):
+        """
+        Un método de pago predeterminado eliminado desde el panel no se vuelve a crear
+        al recargar la página ni al ejecutar de nuevo la población inicial.
+        """
+        self.client.force_login(self.admin_user)
+        self.client.post(self.config_url, {
+            'action': 'delete_payment_method',
+            'payment_method_code': 'TARJETA_DEBITO',
+        })
+        self.assertFalse(PaymentMethod.objects.filter(code='TARJETA_DEBITO').exists())
+
+        self.client.get(self.config_url)
+        ensure_default_payment_methods()
+        self.assertFalse(PaymentMethod.objects.filter(code='TARJETA_DEBITO').exists())
+
+    def test_panel_muestra_saldo_de_metodos_de_pago(self):
+        """El catálogo muestra el saldo disponible de cada método de pago del negocio."""
+        PaymentMethod.objects.filter(code='TRANSFERENCIA').update(balance=Decimal('1234567.89'))
+        self.client.force_login(self.admin_user)
+        response = self.client.get(self.config_url)
+        self.assertContains(response, 'Saldo disponible')
+        self.assertContains(response, 'PYG 1234567.89')

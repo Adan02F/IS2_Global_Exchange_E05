@@ -7,6 +7,8 @@ from django.contrib import messages
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
+from django.urls import reverse
+from urllib.parse import urlencode
 from decimal import Decimal
 import csv
 
@@ -14,16 +16,75 @@ from .models import (
     Caja, TurnoCaja, DenominacionDivisa, DesgloseEfectivoCaja, 
     DetalleDesgloseBillete, ArqueoCaja, BitacoraArqueo, OperacionVentanilla,
     verificar_turno_activo, inicializar_denominaciones_default, procesar_arqueo_cierre,
-    calcular_saldos_actuales_turno
+    calcular_saldos_actuales_turno, TerminalAutoservicio, OperacionTerminal
 )
 from authentication.models import UserProfile, Cliente
+from authentication.permisos import requiere_permiso, tiene_permiso, denegar_acceso
 from gestion_clientes.views import get_user_interface_context
 from procesamiento_operaciones.models import CurrencyPurchaseTransaction, CurrencySaleTransaction
+from procesamiento_operaciones.views import _generar_factura_sifen_async, _sincronizar_facturas_sifen
+from procesamiento_operaciones import facturacion
+from procesamiento_operaciones.facturacion import FacturacionError
+from procesamiento_operaciones.views_facturacion import _auditar
 from tasas_cambio.models import ExchangeRate, ClientBenefitRule
 from tasas_cambio.views import ensure_default_benefit_rules
+from .cotizacion import beneficio_de_cliente, cotizar_efectivo
+
+MARCA_COMPROBANTE_VENTANILLA = "Ventanilla Comprobante:"
+
+
+def _marca_comprobante(comprobante_numero):
+    """
+    Devuelve la marca que vincula una transacción con su comprobante de ventanilla.
+
+    Args:
+        comprobante_numero (str): Número del comprobante emitido por la ventanilla.
+
+    Returns:
+        str: Texto que se guarda en el desglose transparente de la transacción.
+    """
+    return f"{MARCA_COMPROBANTE_VENTANILLA} {comprobante_numero}"
+
+
+def _transaccion_de_operacion(operacion):
+    """
+    Busca la transacción de compra o venta generada por una operación de ventanilla,
+    que es la que lleva la factura electrónica SIFEN.
+
+    Args:
+        operacion (OperacionVentanilla): Operación registrada por el cajero.
+
+    Returns:
+        CurrencyPurchaseTransaction | CurrencySaleTransaction | None: Transacción asociada, si existe.
+    """
+    modelo = CurrencyPurchaseTransaction if operacion.tipo_operacion == 'COMPRA' else CurrencySaleTransaction
+    return modelo.objects.filter(
+        transparent_breakdown__contains=_marca_comprobante(operacion.comprobante_numero)
+    ).first()
+
+
+def _mensaje_factura(transaccion):
+    """
+    Resume para el cajero el resultado de la emisión de la factura electrónica.
+
+    Args:
+        transaccion: Transacción de compra o venta recién facturada.
+
+    Returns:
+        str: Texto breve con el estado de la factura SIFEN.
+    """
+    estado = transaccion.sifen_estado
+    if estado == 'Error':
+        return f"No se pudo emitir la factura electrónica: {transaccion.sifen_error}"
+    if estado == 'En cola':
+        return "Factura electrónica en cola: se emitirá cuando SIFEN responda la anterior."
+    if transaccion.sifen_cdc:
+        return f"Factura electrónica {estado} (CDC {transaccion.sifen_cdc})."
+    return ""
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def gestion_caja_view(request):
     """
     Vista web para la gestión de apertura y cierre de turnos de caja física
@@ -102,6 +163,7 @@ def gestion_caja_view(request):
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def abrir_turno_view(request, caja_id):
     """
     Procesa la apertura de un turno de caja asociando el usuario cajero,
@@ -121,8 +183,10 @@ def abrir_turno_view(request, caja_id):
             saldo_brl = Decimal(request.POST.get('saldo_inicial_brl') or '0')
             saldo_ars = Decimal(request.POST.get('saldo_inicial_ars') or '0')
 
-            if saldo_pyg == 0 and saldo_usd == 0 and saldo_eur == 0 and saldo_brl == 0 and saldo_ars == 0:
-                messages.error(request, "Debe ingresar al menos un saldo inicial mayor a 0 en alguna de las divisas para abrir el turno.")
+            # El turno puede abrirse en cero: el efectivo de apertura se registra luego como
+            # ingreso con desglose de billetes, que el arqueo suma al saldo teórico.
+            if min(saldo_pyg, saldo_usd, saldo_eur, saldo_brl, saldo_ars) < 0:
+                messages.error(request, "Los saldos iniciales no pueden ser negativos.")
                 return redirect('caja:gestion_caja')
 
             turno = TurnoCaja(
@@ -146,6 +210,7 @@ def abrir_turno_view(request, caja_id):
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def cerrar_turno_view(request, turno_id):
     """
     Procesa el cierre de turno de caja ingresando los saldos finales físicos,
@@ -175,6 +240,7 @@ def cerrar_turno_view(request, turno_id):
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def registrar_movimiento_efectivo_view(request, turno_id):
     """
     Procesa un ingreso o salida física de efectivo en un turno activo,
@@ -225,6 +291,7 @@ def registrar_movimiento_efectivo_view(request, turno_id):
 
 
 @login_required
+@requiere_permiso('can_manage_cashboxes')
 def gestion_cajas_admin_view(request):
     """
     Vista de administración para el CRUD de Cajas Físicas y asignación de cajeros.
@@ -232,14 +299,8 @@ def gestion_cajas_admin_view(request):
     """
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     interface_ctx = get_user_interface_context(request, profile)
-    if not interface_ctx.get('is_admin', False) and not request.user.is_superuser:
-        messages.error(request, "Acceso no autorizado.")
-        return redirect('dashboard_redirect')
 
-    cajeros_list = User.objects.filter(
-        Q(profile__role__name__icontains='cajero') |
-        Q(profile__roles__name__icontains='cajero')
-    ).distinct()
+    cajeros_list = User.objects.filter(profile__role__name__icontains='cajero').distinct()
     if not cajeros_list.exists():
         cajeros_list = User.objects.filter(is_superuser=False)
 
@@ -289,6 +350,7 @@ def gestion_cajas_admin_view(request):
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def detalle_turno_operaciones_view(request, turno_id):
     """
     Vista web para consultar el detalle transaccional de todas las operaciones procesadas
@@ -312,6 +374,9 @@ def detalle_turno_operaciones_view(request, turno_id):
     if turno.fecha_cierre:
         purchases_qs = purchases_qs.filter(timestamp__lte=turno.fecha_cierre)
         sales_qs = sales_qs.filter(timestamp__lte=turno.fecha_cierre)
+
+    # Actualiza el estado SIFEN de las facturas del turno antes de mostrarlas
+    _sincronizar_facturas_sifen(purchases_qs, sales_qs)
 
     purchases = []
     if tx_type_filter in ['', 'COMPRA']:
@@ -423,6 +488,66 @@ def detalle_turno_operaciones_view(request, turno_id):
     return render(request, 'caja/detalle_turno_operaciones.html', context)
 
 
+def _facturas_ventanilla_del_cliente(cliente, limite=10):
+    """
+    Últimas operaciones de ventanilla facturadas de un cliente, con el estado de su anulación,
+    para que el cajero pueda pedir la anulación cuando el cliente está en la sucursal.
+
+    Args:
+        cliente (Cliente): Cliente identificado en la ventanilla.
+        limite (int): Cantidad máxima de operaciones a mostrar.
+
+    Returns:
+        list: Transacciones (más recientes primero) con los atributos ``tipo``, ``anulacion``,
+        ``solicitud`` y ``anulable`` para la plantilla.
+    """
+    # El CDC se guarda en el desglose de la transacción (sifen_cdc es una propiedad)
+    filtro = {
+        'cliente': cliente, 'payment_method_type': 'EFECTIVO_VENTANILLA',
+        'transparent_breakdown__contains': 'SIFEN CDC:',
+    }
+    compras = CurrencyPurchaseTransaction.objects.filter(**filtro).order_by('-timestamp')[:limite]
+    ventas = CurrencySaleTransaction.objects.filter(**filtro).order_by('-timestamp')[:limite]
+    operaciones = sorted(list(compras) + list(ventas), key=lambda tx: tx.timestamp, reverse=True)[:limite]
+    for tx in operaciones:
+        tx.tipo = tx.tipo_operacion
+        tx.anulacion = facturacion.anulacion_vigente(tx)
+        tx.solicitud = facturacion.solicitud_pendiente(tx)
+        tx.anulable = tx.sifen_estado == 'Aprobada' and tx.anulacion is None and tx.solicitud is None
+    return operaciones
+
+
+@login_required
+@requiere_permiso('can_operate_cashier')
+def solicitar_anulacion_factura_caja_view(request):
+    """
+    El cajero pide al Administrador la anulación de la factura de una operación de ventanilla
+    cuando el cliente lo solicita en la sucursal. Solo se anula la factura (sin devolución
+    automática de fondos); el Administrador la aprueba o la rechaza desde el panel de facturación.
+    """
+    documento = request.POST.get('documento_busqueda', '').strip()
+    destino = redirect(f"{reverse('caja:ventanilla_pos')}?{urlencode({'documento_busqueda': documento})}"
+                       if documento else 'caja:ventanilla_pos')
+    if request.method != 'POST':
+        return destino
+    modelo = facturacion.modelo_de(request.POST.get('tipo', ''))
+    tx = get_object_or_404(modelo, pk=request.POST.get('id'))
+    try:
+        solicitud = facturacion.solicitar_anulacion_en_caja(tx, request.user, request.POST.get('motivo', ''))
+    except FacturacionError as exc:
+        messages.error(request, str(exc))
+        return destino
+    _auditar(request, 'SOLICITUD_ANULACION_FACTURA',
+             f"{solicitud.descripcion_operacion} (CDC {solicitud.cdc}), pedida en ventanilla: {solicitud.motivo}")
+    messages.success(
+        request,
+        f"Solicitud de anulación de la factura de la {solicitud.descripcion_operacion} enviada al Administrador.",
+    )
+    return destino
+
+
+@login_required
+@requiere_permiso('can_operate_cashier')
 def ventanilla_pos_view(request):
     """
     Vista web para el procesamiento operativo en ventanilla (POS) (PSE-38).
@@ -457,19 +582,20 @@ def ventanilla_pos_view(request):
     if doc_busqueda:
         cliente_encontrado = Cliente.objects.filter(documento_identidad__icontains=doc_busqueda).first()
         if cliente_encontrado:
-            cat = cliente_encontrado.categoria or 'MINORISTA'
-            rule = ClientBenefitRule.objects.filter(category_code__iexact=cat).first()
-            if rule:
-                benefit_percentage = rule.benefit_percentage
-                category_name = rule.category_name
-            elif str(cat).upper() == 'VIP':
-                benefit_percentage = Decimal('2.00')
-                category_name = 'VIP'
-            elif str(cat).upper() == 'CORPORATIVO':
-                benefit_percentage = Decimal('4.00')
-                category_name = 'Corporativo'
+            benefit_percentage, category_name = beneficio_de_cliente(cliente_encontrado)
 
-    operaciones_recientes = OperacionVentanilla.objects.filter(cajero=request.user).order_by('-fecha')[:10]
+    operaciones_recientes = list(
+        OperacionVentanilla.objects.filter(cajero=request.user).order_by('-fecha')[:10]
+    )
+    # Actualiza el estado SIFEN de las facturas del cajero antes de mostrarlas
+    _sincronizar_facturas_sifen(
+        CurrencyPurchaseTransaction.objects.filter(user=request.user, payment_method_type='EFECTIVO_VENTANILLA'),
+        CurrencySaleTransaction.objects.filter(user=request.user, payment_method_type='EFECTIVO_VENTANILLA'),
+    )
+    for op in operaciones_recientes:
+        op.factura = _transaccion_de_operacion(op)
+
+    facturas_cliente = _facturas_ventanilla_del_cliente(cliente_encontrado) if cliente_encontrado else []
     saldos_actuales = calcular_saldos_actuales_turno(turno_activo) if turno_activo else {}
 
     context = {
@@ -482,12 +608,14 @@ def ventanilla_pos_view(request):
         'category_name': category_name,
         'doc_busqueda': doc_busqueda,
         'operaciones_recientes': operaciones_recientes,
+        'facturas_cliente': facturas_cliente,
         'is_admin': is_admin,
     }
     return render(request, 'caja/ventanilla_pos.html', context)
 
 
 @login_required
+@requiere_permiso('can_operate_cashier')
 def procesar_ventanilla_view(request):
     """
     Procesa la operación presencial de compra o venta de divisas en ventanilla (PSE-38),
@@ -538,76 +666,19 @@ def procesar_ventanilla_view(request):
             messages.error(request, "El monto debe ser mayor a cero.")
             return redirect('caja:ventanilla_pos')
 
-        # Resolver beneficio por categoría del cliente (VIP / Corporativo)
-        ensure_default_benefit_rules()
-        benefit_percentage = Decimal('0.00')
-        category_name = 'Minorista'
-        if cliente:
-            cat = cliente.categoria or 'MINORISTA'
-            rule = ClientBenefitRule.objects.filter(category_code__iexact=cat).first()
-            if rule:
-                benefit_percentage = rule.benefit_percentage
-                category_name = rule.category_name
-            elif str(cat).upper() == 'VIP':
-                benefit_percentage = Decimal('2.00')
-                category_name = 'VIP'
-            elif str(cat).upper() == 'CORPORATIVO':
-                benefit_percentage = Decimal('4.00')
-                category_name = 'Corporativo'
-
-        def get_db_rate(cur):
-            """Obtiene la tasa de base de datos ajustada por beneficio de categoría."""
-            if cur == 'PYG':
-                return Decimal('1.0000')
-            r = ExchangeRate.objects.filter(currency_code=cur).first()
-            if not r:
-                defaults = {'USD': Decimal('7300'), 'EUR': Decimal('7800'), 'BRL': Decimal('1400'), 'ARS': Decimal('7.5')}
-                return defaults.get(cur, Decimal('7300'))
-            base = r.buy_rate if tipo_operacion == 'COMPRA' else r.sell_rate
-            if benefit_percentage > 0:
-                if tipo_operacion == 'COMPRA':
-                    return (base * (Decimal('1.0000') + (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
-                return (base * (Decimal('1.0000') - (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
-            return base
-
-        def get_standard_rate(cur):
-            """Obtiene la tasa estándar (sin beneficio) para trazabilidad en comprobantes."""
-            if cur == 'PYG':
-                return Decimal('1.0000')
-            r = ExchangeRate.objects.filter(currency_code=cur).first()
-            if not r:
-                defaults = {'USD': Decimal('7300'), 'EUR': Decimal('7800'), 'BRL': Decimal('1400'), 'ARS': Decimal('7.5')}
-                return defaults.get(cur, Decimal('7300'))
-            return r.buy_rate if tipo_operacion == 'COMPRA' else r.sell_rate
-
-        tasa_origen = get_db_rate(moneda_origen)
-        tasa_destino = get_db_rate(moneda_destino)
-        std_origen = get_standard_rate(moneda_origen)
-        std_destino = get_standard_rate(moneda_destino)
-
+        # Beneficio por categoría del cliente (VIP / Corporativo) y cotización compartida con la terminal
+        benefit_percentage, category_name = beneficio_de_cliente(cliente)
+        cotizacion = cotizar_efectivo(tipo_operacion, moneda_origen, moneda_destino, monto_input, benefit_percentage)
+        monto_origen = cotizacion.monto_origen
+        monto_destino = cotizacion.monto_destino
+        tasa = cotizacion.tasa
+        tasa_std = cotizacion.tasa_std
+        comision = cotizacion.comision
+        valor_pyg = cotizacion.valor_pyg
+        total_a_cobrar_entregar = cotizacion.total_a_cobrar_entregar
         if tipo_operacion == 'COMPRA':
-            monto_origen = monto_input
-            valor_pyg = monto_origen if moneda_origen == 'PYG' else (monto_origen * tasa_origen)
-            comision = monto_origen * Decimal('0.005') # 0.5%
-            comision_pyg = comision if moneda_origen == 'PYG' else (comision * tasa_origen)
-
-            neto_pyg = valor_pyg - comision_pyg
-            monto_destino = neto_pyg if moneda_destino == 'PYG' else (neto_pyg / tasa_destino if tasa_destino > 0 else neto_pyg)
-            tasa = tasa_origen if moneda_origen != 'PYG' else tasa_destino
-            tasa_std = std_origen if moneda_origen != 'PYG' else std_destino
-            total_a_cobrar_entregar = monto_destino
             vuelto = Decimal('0.00')
         else:
-            monto_destino = monto_input
-            neto_pyg = monto_destino if moneda_destino == 'PYG' else (monto_destino * tasa_destino)
-            valor_pyg = neto_pyg / Decimal('1.005')
-            comision_pyg = neto_pyg - valor_pyg
-            comision = comision_pyg if moneda_origen == 'PYG' else (comision_pyg / tasa_origen if tasa_origen > 0 else comision_pyg)
-            monto_origen = valor_pyg if moneda_origen == 'PYG' else (valor_pyg / tasa_origen if tasa_origen > 0 else valor_pyg)
-
-            tasa = tasa_origen if moneda_origen != 'PYG' else tasa_destino
-            tasa_std = std_origen if moneda_origen != 'PYG' else std_destino
-            total_a_cobrar_entregar = monto_origen
             vuelto = efectivo_recibido - monto_origen if efectivo_recibido > monto_origen else Decimal('0.00')
 
         # Validar saldo suficiente en caja para la moneda de salida (moneda_destino)
@@ -639,7 +710,7 @@ def procesar_ventanilla_view(request):
         )
 
         if tipo_operacion == 'COMPRA':
-            CurrencyPurchaseTransaction.objects.create(
+            transaccion = CurrencyPurchaseTransaction.objects.create(
                 user=request.user,
                 cliente=cliente,
                 turno=turno_activo,
@@ -652,7 +723,9 @@ def procesar_ventanilla_view(request):
                 commission_amount=comision,
                 total_pyg=total_a_cobrar_entregar if moneda_destino == 'PYG' else (monto_origen * tasa),
                 status='SUCCESS',
-                payment_method_type='EFECTIVO_VENTANILLA'
+                payment_method_type='EFECTIVO_VENTANILLA',
+                monto_moneda_local=valor_pyg,
+                transparent_breakdown=_marca_comprobante(comprobante_num),
             )
             DesgloseEfectivoCaja.objects.create(
                 turno=turno_activo,
@@ -669,7 +742,7 @@ def procesar_ventanilla_view(request):
                 observacion=f"Ventanilla Compra Pago Net #{comprobante_num} - Cliente {cliente.nombre_o_razon_social}"
             )
         else:
-            CurrencySaleTransaction.objects.create(
+            transaccion = CurrencySaleTransaction.objects.create(
                 user=request.user,
                 cliente=cliente,
                 turno=turno_activo,
@@ -682,7 +755,9 @@ def procesar_ventanilla_view(request):
                 commission_amount=comision,
                 total_pyg=total_a_cobrar_entregar if moneda_origen == 'PYG' else (monto_origen * tasa),
                 status='SUCCESS',
-                payment_method_type='EFECTIVO_VENTANILLA'
+                payment_method_type='EFECTIVO_VENTANILLA',
+                monto_moneda_local=valor_pyg,
+                transparent_breakdown=_marca_comprobante(comprobante_num),
             )
             DesgloseEfectivoCaja.objects.create(
                 turno=turno_activo,
@@ -704,9 +779,259 @@ def procesar_ventanilla_view(request):
             cliente.transaction_volume = Decimal(str(cliente.transaction_volume or 0)) + Decimal(str(vol_add))
             cliente.save()
 
+        # Factura electrónica SIFEN, igual que en las operaciones del cliente.
+        # Una falla queda registrada en la transacción y no revierte la operación ya cobrada.
+        _generar_factura_sifen_async(transaccion)
+        transaccion.refresh_from_db()
+        mensaje_factura = _mensaje_factura(transaccion)
+
         messages.success(request, f"¡Operación procesada con éxito! Comprobante N° {comprobante_num} emitido. Saldo de caja actualizado en tiempo real.")
+        if transaccion.sifen_estado == 'Error':
+            messages.error(request, mensaje_factura)
+        elif mensaje_factura:
+            messages.success(request, mensaje_factura)
         return redirect('caja:ventanilla_pos')
 
     except Exception as e:
         messages.error(request, f"Error al procesar operación en ventanilla: {str(e)}")
         return redirect('caja:ventanilla_pos')
+
+
+# ---------------------------------------------------------------------------
+# Terminal de autoservicio (TAUser) - operaciones en efectivo sin cajero
+# ---------------------------------------------------------------------------
+
+DIVISAS_TERMINAL = ['USD', 'EUR', 'BRL', 'ARS']
+SESION_TAUSER = 'tauser_operacion'
+SESION_INTENTOS = 'tauser_intentos'
+MAX_INTENTOS_TERMINAL = 5
+BLOQUEO_TERMINAL_MINUTOS = 5
+
+
+@login_required
+@requiere_permiso('can_perform_exchange')
+def terminal_cliente_view(request):
+    """
+    Página del cliente para generar el código de una operación en efectivo que completará
+    en una terminal de autoservicio, y para ver o cancelar sus códigos pendientes.
+
+    POST ``accion=generar``: crea la operación con ``tipo_operacion``, ``divisa`` y ``monto``.
+    POST ``accion=cancelar``: cancela la operación pendiente ``operacion_id`` del cliente.
+
+    Args:
+        request (HttpRequest): Solicitud del cliente.
+
+    Returns:
+        HttpResponse: Página de la terminal para el cliente o redirección tras la acción.
+    """
+    from procesamiento_operaciones.views import _resolve_active_client
+    from . import terminal as tauser
+
+    cliente = _resolve_active_client(request.user, request)
+    tauser.vencer_operaciones()
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'generar':
+                operacion = tauser.generar_operacion(
+                    request.user, cliente, request.POST.get('tipo_operacion'),
+                    request.POST.get('divisa'), request.POST.get('monto') or '0',
+                )
+                messages.success(request, f"Código generado: {operacion.codigo}. Úselo en cualquier terminal antes de "
+                                          f"las {timezone.localtime(operacion.expira_en).strftime('%H:%M')}.")
+            elif accion == 'cancelar' and cliente is not None:
+                operacion = get_object_or_404(OperacionTerminal, pk=request.POST.get('operacion_id'), cliente=cliente)
+                tauser.cancelar_operacion(operacion, 'Cancelada por el cliente desde la web')
+                messages.success(request, f"Operación {operacion.codigo} cancelada.")
+        except tauser.TerminalError as exc:
+            messages.error(request, str(exc))
+        return redirect('caja:terminal_cliente')
+
+    operaciones = OperacionTerminal.objects.filter(cliente=cliente).select_related('terminal')[:15] if cliente else []
+    return render(request, 'caja/terminal_cliente.html', {
+        'cliente': cliente,
+        'divisas': DIVISAS_TERMINAL,
+        'operaciones': operaciones,
+        'terminales': TerminalAutoservicio.objects.filter(activa=True),
+        'validez_minutos': tauser.validez_minutos(),
+    })
+
+
+def _terminal_bloqueada(request):
+    """Indica si la terminal bloqueó temporalmente esta sesión por demasiados intentos fallidos."""
+    datos = request.session.get(SESION_INTENTOS) or {}
+    hasta = datos.get('hasta')
+    return bool(hasta and timezone.now().timestamp() < hasta)
+
+
+def _registrar_intento_fallido(request):
+    """Cuenta un intento fallido de código; al llegar al máximo bloquea la sesión unos minutos."""
+    datos = request.session.get(SESION_INTENTOS) or {}
+    fallidos = int(datos.get('fallidos', 0)) + 1
+    datos = {'fallidos': fallidos}
+    if fallidos >= MAX_INTENTOS_TERMINAL:
+        datos = {'fallidos': 0, 'hasta': timezone.now().timestamp() + BLOQUEO_TERMINAL_MINUTOS * 60}
+    request.session[SESION_INTENTOS] = datos
+
+
+def terminal_kiosco_view(request, codigo_terminal):
+    """
+    Pantalla de inicio de la terminal de autoservicio (modo kiosco, sin inicio de sesión).
+
+    El cliente ingresa el código de operación y su documento. Tras 5 intentos fallidos la
+    terminal se bloquea 5 minutos para esa sesión.
+
+    Args:
+        request (HttpRequest): Solicitud desde la terminal.
+        codigo_terminal (str): Código de la terminal (ej. T01).
+
+    Returns:
+        HttpResponse: Pantalla de ingreso o redirección a la operación encontrada.
+    """
+    from . import terminal as tauser
+
+    terminal = get_object_or_404(TerminalAutoservicio, codigo=codigo_terminal)
+    error = None
+    if request.method == 'POST' and terminal.activa:
+        if _terminal_bloqueada(request):
+            error = f'Demasiados intentos fallidos. Espere {BLOQUEO_TERMINAL_MINUTOS} minutos.'
+        else:
+            try:
+                operacion = tauser.buscar_operacion(request.POST.get('codigo'), request.POST.get('documento'))
+            except tauser.TerminalError as exc:
+                _registrar_intento_fallido(request)
+                error = str(exc)
+            else:
+                request.session.pop(SESION_INTENTOS, None)
+                request.session[SESION_TAUSER] = {'terminal': terminal.codigo, 'operacion': operacion.pk}
+                return redirect('caja:terminal_kiosco_operacion', codigo_terminal=terminal.codigo)
+    return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'inicio', 'error': error})
+
+
+def terminal_kiosco_operacion_view(request, codigo_terminal):
+    """
+    Operación en curso en la terminal: muestra el resumen, pide aceptar la nueva cotización si
+    cambió, recibe los billetes y entrega el dinero.
+
+    POST ``accion``: ``aceptar_cotizacion``, ``cancelar`` o ``depositar`` (billetes ``billete_<valor>``).
+
+    Args:
+        request (HttpRequest): Solicitud desde la terminal.
+        codigo_terminal (str): Código de la terminal.
+
+    Returns:
+        HttpResponse: Pantalla de la operación, comprobante final o redirección al inicio.
+    """
+    from . import terminal as tauser
+
+    terminal = get_object_or_404(TerminalAutoservicio, codigo=codigo_terminal)
+    sesion = request.session.get(SESION_TAUSER) or {}
+    if sesion.get('terminal') != terminal.codigo:
+        return redirect('caja:terminal_kiosco', codigo_terminal=terminal.codigo)
+    operacion = OperacionTerminal.objects.filter(pk=sesion.get('operacion')).select_related('cliente').first()
+    if operacion is None or operacion.estado != OperacionTerminal.PENDIENTE:
+        request.session.pop(SESION_TAUSER, None)
+        return redirect('caja:terminal_kiosco', codigo_terminal=terminal.codigo)
+
+    error = None
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'cancelar':
+                tauser.cancelar_operacion(operacion, f'Cancelada por el cliente en la terminal {terminal.codigo}')
+                request.session.pop(SESION_TAUSER, None)
+                return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'cancelada', 'operacion': operacion})
+            if accion == 'aceptar_cotizacion':
+                tauser.actualizar_cotizacion(operacion)
+                return redirect('caja:terminal_kiosco_operacion', codigo_terminal=terminal.codigo)
+            if accion == 'depositar':
+                if tauser.cotizacion_cambio(operacion) is not None:
+                    raise tauser.TerminalError('La cotización cambió. Acepte la nueva cotización o cancele la operación.')
+                billetes = {
+                    clave[len('billete_'):]: request.POST.get(clave)
+                    for clave in request.POST if clave.startswith('billete_')
+                }
+                operacion, transaccion = tauser.completar_operacion(operacion, terminal, billetes)
+                request.session.pop(SESION_TAUSER, None)
+                _generar_factura_sifen_async(transaccion)
+                transaccion.refresh_from_db()
+                return render(request, 'caja/terminal_kiosco.html', {
+                    'terminal': terminal, 'paso': 'completada', 'operacion': operacion,
+                    'transaccion': transaccion, 'mensaje_factura': _mensaje_factura(transaccion),
+                })
+        except tauser.TerminalError as exc:
+            error = str(exc)
+            operacion.refresh_from_db()
+            if operacion.estado != OperacionTerminal.PENDIENTE:
+                request.session.pop(SESION_TAUSER, None)
+                return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'inicio', 'error': error})
+
+    return render(request, 'caja/terminal_kiosco.html', {
+        'terminal': terminal,
+        'paso': 'operacion',
+        'operacion': operacion,
+        'nueva_cotizacion': tauser.cotizacion_cambio(operacion),
+        'denominaciones_deposito': tauser.denominaciones(operacion.moneda_origen),
+        'error': error,
+    })
+
+
+@login_required
+@requiere_permiso('can_manage_cashboxes')
+def terminales_admin_view(request):
+    """
+    Gestión de terminales de autoservicio para el administrador: alta, activación, recarga y retiro
+    de billetes, y consulta de las últimas operaciones.
+
+    POST ``accion``: ``crear`` (codigo, nombre, ubicacion), ``estado`` (terminal_id),
+    ``recargar`` o ``retirar`` (terminal_id, moneda, ``billete_<valor>``).
+
+    Args:
+        request (HttpRequest): Solicitud del administrador.
+
+    Returns:
+        HttpResponse: Página de gestión o redirección tras la acción.
+    """
+    from . import terminal as tauser
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'crear':
+                codigo = (request.POST.get('codigo') or '').strip().upper()
+                nombre = (request.POST.get('nombre') or '').strip()
+                if not codigo or not nombre:
+                    raise tauser.TerminalError('Indique el código y el nombre de la terminal.')
+                if TerminalAutoservicio.objects.filter(codigo=codigo).exists():
+                    raise tauser.TerminalError(f'Ya existe una terminal con el código {codigo}.')
+                terminal = TerminalAutoservicio.objects.create(
+                    codigo=codigo, nombre=nombre, ubicacion=(request.POST.get('ubicacion') or '').strip(),
+                )
+                tauser.asegurar_stock(terminal)
+                messages.success(request, f'Terminal {terminal} creada. Cargue billetes antes de habilitarla al público.')
+            elif accion == 'estado':
+                terminal = get_object_or_404(TerminalAutoservicio, pk=request.POST.get('terminal_id'))
+                terminal.activa = not terminal.activa
+                terminal.save(update_fields=['activa'])
+                messages.success(request, f"Terminal {terminal.codigo} {'activada' if terminal.activa else 'desactivada'}.")
+            elif accion in ('recargar', 'retirar'):
+                terminal = get_object_or_404(TerminalAutoservicio, pk=request.POST.get('terminal_id'))
+                moneda = request.POST.get('moneda')
+                billetes = {clave[len('billete_'):]: request.POST.get(clave) for clave in request.POST if clave.startswith('billete_')}
+                total = tauser.recargar_stock(terminal, moneda, billetes, retirar=(accion == 'retirar'))
+                verbo = 'Retiro' if accion == 'retirar' else 'Recarga'
+                messages.success(request, f'{verbo} de {total:,.2f} {moneda} registrada en la terminal {terminal.codigo}.')
+        except tauser.TerminalError as exc:
+            messages.error(request, str(exc))
+        return redirect('caja:terminales_admin')
+
+    tauser.vencer_operaciones()
+    terminales = [
+        {'terminal': t, 'stock': tauser.resumen_stock(t)}
+        for t in TerminalAutoservicio.objects.all()
+    ]
+    return render(request, 'caja/terminales_admin.html', {
+        'terminales': terminales,
+        'operaciones': OperacionTerminal.objects.select_related('cliente', 'terminal')[:20],
+    })

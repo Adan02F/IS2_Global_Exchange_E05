@@ -64,12 +64,6 @@
 
                         </li>
                         <li>
-                                <a class="class" href="#ExchangeRate.NotUpdated">ExchangeRate.NotUpdated</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
                                 <a class="function" href="#ExchangeRate.get_next_by_last_updated">get_next_by_last_updated</a>
                         </li>
                         <li>
@@ -107,12 +101,6 @@
                         </li>
                         <li>
                                 <a class="class" href="#ExchangeRateHistory.MultipleObjectsReturned">ExchangeRateHistory.MultipleObjectsReturned</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
-                                <a class="class" href="#ExchangeRateHistory.NotUpdated">ExchangeRateHistory.NotUpdated</a>
                                         <ul class="memberlist">
                             </ul>
 
@@ -161,12 +149,6 @@
                         </li>
                         <li>
                                 <a class="class" href="#ClientBenefitRule.MultipleObjectsReturned">ClientBenefitRule.MultipleObjectsReturned</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
-                                <a class="class" href="#ClientBenefitRule.NotUpdated">ClientBenefitRule.NotUpdated</a>
                                         <ul class="memberlist">
                             </ul>
 
@@ -241,12 +223,6 @@
 
                         </li>
                         <li>
-                                <a class="class" href="#PaymentMethod.NotUpdated">PaymentMethod.NotUpdated</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
                                 <a class="function" href="#PaymentMethod.get_method_type_display">get_method_type_display</a>
                         </li>
                         <li>
@@ -266,6 +242,9 @@
                         </li>
                         <li>
                                 <a class="variable" href="#PaymentMethod.currencysaletransaction_set">currencysaletransaction_set</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PaymentMethod.movimientos_saldo">movimientos_saldo</a>
                         </li>
                 </ul>
 
@@ -317,12 +296,6 @@
                         </li>
                         <li>
                                 <a class="class" href="#CurrencyAlert.MultipleObjectsReturned">CurrencyAlert.MultipleObjectsReturned</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
-                                <a class="class" href="#CurrencyAlert.NotUpdated">CurrencyAlert.NotUpdated</a>
                                         <ul class="memberlist">
                             </ul>
 
@@ -401,12 +374,6 @@
                         </li>
                         <li>
                                 <a class="class" href="#NotificationLog.MultipleObjectsReturned">NotificationLog.MultipleObjectsReturned</a>
-                                        <ul class="memberlist">
-                            </ul>
-
-                        </li>
-                        <li>
-                                <a class="class" href="#NotificationLog.NotUpdated">NotificationLog.NotUpdated</a>
                                         <ul class="memberlist">
                             </ul>
 
@@ -680,36 +647,37 @@
 </span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a>    <span class="n">TYPES</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a>        <span class="p">(</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="s1">'Alerta de Tasa Objetivo'</span><span class="p">),</span>
 </span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a>        <span class="p">(</span><span class="s1">'VARIACION_ABRUPTA'</span><span class="p">,</span> <span class="s1">'Variación Abrupta de Mercado'</span><span class="p">),</span>
-</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>    <span class="p">]</span>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>    <span class="n">CHANNELS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>        <span class="p">(</span><span class="s1">'EMAIL'</span><span class="p">,</span> <span class="s1">'Email'</span><span class="p">),</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>        <span class="p">(</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="s1">'Push'</span><span class="p">),</span>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>        <span class="p">(</span><span class="s1">'AMBOS'</span><span class="p">,</span> <span class="s1">'Email y Push'</span><span class="p">),</span>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>    <span class="p">]</span>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>    <span class="n">cliente</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'authentication.Cliente'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'notification_logs'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Cliente Destinatario"</span><span class="p">)</span>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'auth.User'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">SET_NULL</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Usuario Destinatario"</span><span class="p">)</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Título de Notificación"</span><span class="p">)</span>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="n">message</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Mensaje"</span><span class="p">)</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>    <span class="n">notification_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">TYPES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Tipo de Notification"</span><span class="p">)</span>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>    <span class="n">channel</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">CHANNELS</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Canal"</span><span class="p">)</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>    <span class="n">is_read</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Leída"</span><span class="p">)</span>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Fecha y Hora"</span><span class="p">)</span>
-</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a>
-</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">"Registro de Notificación"</span>
-</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">"Registros de Notificaciones"</span>
-</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'-created_at'</span><span class="p">]</span>
-</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>
-</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a><span class="w">        </span><span class="sd">"""</span>
-</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a><span class="sd">        Devuelve la representación en cadena del registro de notificación.</span>
-</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a>
-</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">        Returns:</span>
-</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="sd">            str: Representación descriptiva de la notificación.</span>
-</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">        """</span>
-</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a>        <span class="n">client_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span><span class="o">.</span><span class="n">nombre_o_razon_social</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span> <span class="k">else</span> <span class="s2">"Broadcast General"</span>
-</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>        <span class="p">(</span><span class="s1">'FACTURACION'</span><span class="p">,</span> <span class="s1">'Facturación Electrónica'</span><span class="p">),</span>
+</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>    <span class="p">]</span>
+</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="n">CHANNELS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>        <span class="p">(</span><span class="s1">'EMAIL'</span><span class="p">,</span> <span class="s1">'Email'</span><span class="p">),</span>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>        <span class="p">(</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="s1">'Push'</span><span class="p">),</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>        <span class="p">(</span><span class="s1">'AMBOS'</span><span class="p">,</span> <span class="s1">'Email y Push'</span><span class="p">),</span>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>    <span class="p">]</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="n">cliente</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'authentication.Cliente'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'notification_logs'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Cliente Destinatario"</span><span class="p">)</span>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'auth.User'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">SET_NULL</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Usuario Destinatario"</span><span class="p">)</span>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Título de Notificación"</span><span class="p">)</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>    <span class="n">message</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Mensaje"</span><span class="p">)</span>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>    <span class="n">notification_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">TYPES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Tipo de Notification"</span><span class="p">)</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>    <span class="n">channel</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">CHANNELS</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Canal"</span><span class="p">)</span>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>    <span class="n">is_read</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Leída"</span><span class="p">)</span>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a>    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Fecha y Hora"</span><span class="p">)</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">"Registro de Notificación"</span>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">"Registros de Notificaciones"</span>
+</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'-created_at'</span><span class="p">]</span>
+</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>
+</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a><span class="w">        </span><span class="sd">"""</span>
+</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">        Devuelve la representación en cadena del registro de notificación.</span>
+</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a>
+</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="sd">        Returns:</span>
+</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">            str: Representación descriptiva de la notificación.</span>
+</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">        """</span>
+</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>        <span class="n">client_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span><span class="o">.</span><span class="n">nombre_o_razon_social</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span> <span class="k">else</span> <span class="s2">"Broadcast General"</span>
+</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">"</span>
 </span></pre></div>
 
 
@@ -922,9 +890,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ExchangeRate.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -954,21 +920,6 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#ExchangeRate.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="ExchangeRate.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ExchangeRate.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ExchangeRate.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 
@@ -1155,9 +1106,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ExchangeRateHistory.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -1187,21 +1136,6 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#ExchangeRateHistory.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="ExchangeRateHistory.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ExchangeRateHistory.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ExchangeRateHistory.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 
@@ -1425,9 +1359,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#ClientBenefitRule.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -1457,21 +1389,6 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#ClientBenefitRule.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="ClientBenefitRule.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">ClientBenefitRule.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#ClientBenefitRule.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 
@@ -1850,9 +1767,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#PaymentMethod.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                             <div id="PaymentMethod.currencypurchasetransaction_set" class="classattr">
@@ -1875,7 +1790,7 @@ many-to-one relation.</p>
 <p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
 
 <p>Most of the implementation is delegated to a dynamically defined manager
-class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
+class built by <code>create_forward_many_to_many_manager()</code> defined below.</p>
 </div>
 
 
@@ -1900,7 +1815,32 @@ many-to-one relation.</p>
 <p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
 
 <p>Most of the implementation is delegated to a dynamically defined manager
-class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
+class built by <code>create_forward_many_to_many_manager()</code> defined below.</p>
+</div>
+
+
+                            </div>
+                            <div id="PaymentMethod.movimientos_saldo" class="classattr">
+                                <div class="attr variable">
+            <span class="name">movimientos_saldo</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PaymentMethod.movimientos_saldo"></a>
+    
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_forward_many_to_many_manager()</code> defined below.</p>
 </div>
 
 
@@ -1932,21 +1872,6 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
     <a class="headerlink" href="#PaymentMethod.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="PaymentMethod.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">PaymentMethod.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#PaymentMethod.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 
@@ -2390,9 +2315,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#CurrencyAlert.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -2426,21 +2349,6 @@ object the first time, the query is executed.</p>
 
 
                 </section>
-                <section id="CurrencyAlert.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">CurrencyAlert.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#CurrencyAlert.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
-</div>
-
-
-                </section>
                 <section id="NotificationLog">
                             <input id="NotificationLog-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr class">
@@ -2470,36 +2378,37 @@ object the first time, the query is executed.</p>
 </span><span id="NotificationLog-220"><a href="#NotificationLog-220"><span class="linenos">220</span></a>    <span class="n">TYPES</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="NotificationLog-221"><a href="#NotificationLog-221"><span class="linenos">221</span></a>        <span class="p">(</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="s1">'Alerta de Tasa Objetivo'</span><span class="p">),</span>
 </span><span id="NotificationLog-222"><a href="#NotificationLog-222"><span class="linenos">222</span></a>        <span class="p">(</span><span class="s1">'VARIACION_ABRUPTA'</span><span class="p">,</span> <span class="s1">'Variación Abrupta de Mercado'</span><span class="p">),</span>
-</span><span id="NotificationLog-223"><a href="#NotificationLog-223"><span class="linenos">223</span></a>    <span class="p">]</span>
-</span><span id="NotificationLog-224"><a href="#NotificationLog-224"><span class="linenos">224</span></a>    <span class="n">CHANNELS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="NotificationLog-225"><a href="#NotificationLog-225"><span class="linenos">225</span></a>        <span class="p">(</span><span class="s1">'EMAIL'</span><span class="p">,</span> <span class="s1">'Email'</span><span class="p">),</span>
-</span><span id="NotificationLog-226"><a href="#NotificationLog-226"><span class="linenos">226</span></a>        <span class="p">(</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="s1">'Push'</span><span class="p">),</span>
-</span><span id="NotificationLog-227"><a href="#NotificationLog-227"><span class="linenos">227</span></a>        <span class="p">(</span><span class="s1">'AMBOS'</span><span class="p">,</span> <span class="s1">'Email y Push'</span><span class="p">),</span>
-</span><span id="NotificationLog-228"><a href="#NotificationLog-228"><span class="linenos">228</span></a>    <span class="p">]</span>
-</span><span id="NotificationLog-229"><a href="#NotificationLog-229"><span class="linenos">229</span></a>
-</span><span id="NotificationLog-230"><a href="#NotificationLog-230"><span class="linenos">230</span></a>    <span class="n">cliente</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'authentication.Cliente'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'notification_logs'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Cliente Destinatario"</span><span class="p">)</span>
-</span><span id="NotificationLog-231"><a href="#NotificationLog-231"><span class="linenos">231</span></a>    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'auth.User'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">SET_NULL</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Usuario Destinatario"</span><span class="p">)</span>
-</span><span id="NotificationLog-232"><a href="#NotificationLog-232"><span class="linenos">232</span></a>    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Título de Notificación"</span><span class="p">)</span>
-</span><span id="NotificationLog-233"><a href="#NotificationLog-233"><span class="linenos">233</span></a>    <span class="n">message</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Mensaje"</span><span class="p">)</span>
-</span><span id="NotificationLog-234"><a href="#NotificationLog-234"><span class="linenos">234</span></a>    <span class="n">notification_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">TYPES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Tipo de Notification"</span><span class="p">)</span>
-</span><span id="NotificationLog-235"><a href="#NotificationLog-235"><span class="linenos">235</span></a>    <span class="n">channel</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">CHANNELS</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Canal"</span><span class="p">)</span>
-</span><span id="NotificationLog-236"><a href="#NotificationLog-236"><span class="linenos">236</span></a>    <span class="n">is_read</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Leída"</span><span class="p">)</span>
-</span><span id="NotificationLog-237"><a href="#NotificationLog-237"><span class="linenos">237</span></a>    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Fecha y Hora"</span><span class="p">)</span>
-</span><span id="NotificationLog-238"><a href="#NotificationLog-238"><span class="linenos">238</span></a>
-</span><span id="NotificationLog-239"><a href="#NotificationLog-239"><span class="linenos">239</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="NotificationLog-240"><a href="#NotificationLog-240"><span class="linenos">240</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">"Registro de Notificación"</span>
-</span><span id="NotificationLog-241"><a href="#NotificationLog-241"><span class="linenos">241</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">"Registros de Notificaciones"</span>
-</span><span id="NotificationLog-242"><a href="#NotificationLog-242"><span class="linenos">242</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'-created_at'</span><span class="p">]</span>
-</span><span id="NotificationLog-243"><a href="#NotificationLog-243"><span class="linenos">243</span></a>
-</span><span id="NotificationLog-244"><a href="#NotificationLog-244"><span class="linenos">244</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="NotificationLog-245"><a href="#NotificationLog-245"><span class="linenos">245</span></a><span class="w">        </span><span class="sd">"""</span>
-</span><span id="NotificationLog-246"><a href="#NotificationLog-246"><span class="linenos">246</span></a><span class="sd">        Devuelve la representación en cadena del registro de notificación.</span>
-</span><span id="NotificationLog-247"><a href="#NotificationLog-247"><span class="linenos">247</span></a>
-</span><span id="NotificationLog-248"><a href="#NotificationLog-248"><span class="linenos">248</span></a><span class="sd">        Returns:</span>
-</span><span id="NotificationLog-249"><a href="#NotificationLog-249"><span class="linenos">249</span></a><span class="sd">            str: Representación descriptiva de la notificación.</span>
-</span><span id="NotificationLog-250"><a href="#NotificationLog-250"><span class="linenos">250</span></a><span class="sd">        """</span>
-</span><span id="NotificationLog-251"><a href="#NotificationLog-251"><span class="linenos">251</span></a>        <span class="n">client_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span><span class="o">.</span><span class="n">nombre_o_razon_social</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span> <span class="k">else</span> <span class="s2">"Broadcast General"</span>
-</span><span id="NotificationLog-252"><a href="#NotificationLog-252"><span class="linenos">252</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="NotificationLog-223"><a href="#NotificationLog-223"><span class="linenos">223</span></a>        <span class="p">(</span><span class="s1">'FACTURACION'</span><span class="p">,</span> <span class="s1">'Facturación Electrónica'</span><span class="p">),</span>
+</span><span id="NotificationLog-224"><a href="#NotificationLog-224"><span class="linenos">224</span></a>    <span class="p">]</span>
+</span><span id="NotificationLog-225"><a href="#NotificationLog-225"><span class="linenos">225</span></a>    <span class="n">CHANNELS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="NotificationLog-226"><a href="#NotificationLog-226"><span class="linenos">226</span></a>        <span class="p">(</span><span class="s1">'EMAIL'</span><span class="p">,</span> <span class="s1">'Email'</span><span class="p">),</span>
+</span><span id="NotificationLog-227"><a href="#NotificationLog-227"><span class="linenos">227</span></a>        <span class="p">(</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="s1">'Push'</span><span class="p">),</span>
+</span><span id="NotificationLog-228"><a href="#NotificationLog-228"><span class="linenos">228</span></a>        <span class="p">(</span><span class="s1">'AMBOS'</span><span class="p">,</span> <span class="s1">'Email y Push'</span><span class="p">),</span>
+</span><span id="NotificationLog-229"><a href="#NotificationLog-229"><span class="linenos">229</span></a>    <span class="p">]</span>
+</span><span id="NotificationLog-230"><a href="#NotificationLog-230"><span class="linenos">230</span></a>
+</span><span id="NotificationLog-231"><a href="#NotificationLog-231"><span class="linenos">231</span></a>    <span class="n">cliente</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'authentication.Cliente'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s1">'notification_logs'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Cliente Destinatario"</span><span class="p">)</span>
+</span><span id="NotificationLog-232"><a href="#NotificationLog-232"><span class="linenos">232</span></a>    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">'auth.User'</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">SET_NULL</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Usuario Destinatario"</span><span class="p">)</span>
+</span><span id="NotificationLog-233"><a href="#NotificationLog-233"><span class="linenos">233</span></a>    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Título de Notificación"</span><span class="p">)</span>
+</span><span id="NotificationLog-234"><a href="#NotificationLog-234"><span class="linenos">234</span></a>    <span class="n">message</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Mensaje"</span><span class="p">)</span>
+</span><span id="NotificationLog-235"><a href="#NotificationLog-235"><span class="linenos">235</span></a>    <span class="n">notification_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">TYPES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'ALERTA_TASA'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Tipo de Notification"</span><span class="p">)</span>
+</span><span id="NotificationLog-236"><a href="#NotificationLog-236"><span class="linenos">236</span></a>    <span class="n">channel</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">CHANNELS</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'PUSH'</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Canal"</span><span class="p">)</span>
+</span><span id="NotificationLog-237"><a href="#NotificationLog-237"><span class="linenos">237</span></a>    <span class="n">is_read</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Leída"</span><span class="p">)</span>
+</span><span id="NotificationLog-238"><a href="#NotificationLog-238"><span class="linenos">238</span></a>    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">"Fecha y Hora"</span><span class="p">)</span>
+</span><span id="NotificationLog-239"><a href="#NotificationLog-239"><span class="linenos">239</span></a>
+</span><span id="NotificationLog-240"><a href="#NotificationLog-240"><span class="linenos">240</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="NotificationLog-241"><a href="#NotificationLog-241"><span class="linenos">241</span></a>        <span class="n">verbose_name</span> <span class="o">=</span> <span class="s2">"Registro de Notificación"</span>
+</span><span id="NotificationLog-242"><a href="#NotificationLog-242"><span class="linenos">242</span></a>        <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="s2">"Registros de Notificaciones"</span>
+</span><span id="NotificationLog-243"><a href="#NotificationLog-243"><span class="linenos">243</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'-created_at'</span><span class="p">]</span>
+</span><span id="NotificationLog-244"><a href="#NotificationLog-244"><span class="linenos">244</span></a>
+</span><span id="NotificationLog-245"><a href="#NotificationLog-245"><span class="linenos">245</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="NotificationLog-246"><a href="#NotificationLog-246"><span class="linenos">246</span></a><span class="w">        </span><span class="sd">"""</span>
+</span><span id="NotificationLog-247"><a href="#NotificationLog-247"><span class="linenos">247</span></a><span class="sd">        Devuelve la representación en cadena del registro de notificación.</span>
+</span><span id="NotificationLog-248"><a href="#NotificationLog-248"><span class="linenos">248</span></a>
+</span><span id="NotificationLog-249"><a href="#NotificationLog-249"><span class="linenos">249</span></a><span class="sd">        Returns:</span>
+</span><span id="NotificationLog-250"><a href="#NotificationLog-250"><span class="linenos">250</span></a><span class="sd">            str: Representación descriptiva de la notificación.</span>
+</span><span id="NotificationLog-251"><a href="#NotificationLog-251"><span class="linenos">251</span></a><span class="sd">        """</span>
+</span><span id="NotificationLog-252"><a href="#NotificationLog-252"><span class="linenos">252</span></a>        <span class="n">client_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span><span class="o">.</span><span class="n">nombre_o_razon_social</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cliente</span> <span class="k">else</span> <span class="s2">"Broadcast General"</span>
+</span><span id="NotificationLog-253"><a href="#NotificationLog-253"><span class="linenos">253</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">"</span>
 </span></pre></div>
 
 
@@ -2521,7 +2430,8 @@ o por variaciones abruptas en las tasas de cambio (PSE-35).</p>
                             <div id="NotificationLog.TYPES" class="classattr">
                                 <div class="attr variable">
             <span class="name">TYPES</span>        =
-<span class="default_value">[(&#39;ALERTA_TASA&#39;, &#39;Alerta de Tasa Objetivo&#39;), (&#39;VARIACION_ABRUPTA&#39;, &#39;Variación Abrupta de Mercado&#39;)]</span>
+<input id="NotificationLog.TYPES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="NotificationLog.TYPES-view-value"></label><span class="default_value">[(&#39;ALERTA_TASA&#39;, &#39;Alerta de Tasa Objetivo&#39;), (&#39;VARIACION_ABRUPTA&#39;, &#39;Variación Abrupta de Mercado&#39;), (&#39;FACTURACION&#39;, &#39;Facturación Electrónica&#39;)]</span>
 
         
     </div>
@@ -2806,9 +2716,7 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#NotificationLog.objects"></a>
     
-            <div class="docstring"><p>The type of the None singleton.</p>
-</div>
-
+    
 
                             </div>
                 </section>
@@ -2838,21 +2746,6 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#NotificationLog.MultipleObjectsReturned"></a>
     
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
-</div>
-
-
-                </section>
-                <section id="NotificationLog.NotUpdated">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">NotificationLog.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#NotificationLog.NotUpdated"></a>
-    
-            <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 
 

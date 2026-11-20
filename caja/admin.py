@@ -2,7 +2,8 @@
 from django.contrib import admin
 from .models import (
     Caja, TurnoCaja, DenominacionDivisa, DesgloseEfectivoCaja, 
-    DetalleDesgloseBillete, ArqueoCaja, BitacoraArqueo, OperacionVentanilla
+    DetalleDesgloseBillete, ArqueoCaja, BitacoraArqueo, OperacionVentanilla,
+    TerminalAutoservicio, StockBilleteTerminal, OperacionTerminal
 )
 
 @admin.register(Caja)
@@ -89,3 +90,26 @@ class OperacionVentanillaAdmin(admin.ModelAdmin):
     list_filter = ('tipo_operacion', 'moneda_origen', 'moneda_destino', 'fecha')
     search_fields = ('comprobante_numero', 'cliente__nombre_o_razon_social', 'cajero__username')
 
+
+
+class StockBilleteTerminalInline(admin.TabularInline):
+    """Stock de billetes editable dentro de la terminal."""
+    model = StockBilleteTerminal
+    extra = 0
+
+
+@admin.register(TerminalAutoservicio)
+class TerminalAutoservicioAdmin(admin.ModelAdmin):
+    """Administración de Terminales de Autoservicio (TAUser) en Django Admin."""
+    list_display = ('codigo', 'nombre', 'ubicacion', 'activa')
+    list_filter = ('activa',)
+    search_fields = ('codigo', 'nombre')
+    inlines = [StockBilleteTerminalInline]
+
+
+@admin.register(OperacionTerminal)
+class OperacionTerminalAdmin(admin.ModelAdmin):
+    """Consulta de Operaciones de Terminal de Autoservicio en Django Admin."""
+    list_display = ('codigo', 'cliente', 'tipo_operacion', 'monto_origen', 'moneda_origen', 'monto_destino', 'moneda_destino', 'estado', 'terminal', 'creado_en')
+    list_filter = ('estado', 'tipo_operacion', 'terminal')
+    search_fields = ('codigo', 'cliente__nombre_o_razon_social', 'cliente__documento_identidad')

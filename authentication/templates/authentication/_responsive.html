@@ -1,0 +1,98 @@
+{% comment %}
+Adaptación a celulares compartida por todas las páginas (se incluye dentro de <head>).
+
+* Barra superior: en pantallas de menos de 768 px, el grupo de la derecha (rol, cliente, modo usuario,
+  usuario, cerrar sesión) se pliega en un menú desplegable con un botón de hamburguesa, y cada control
+  ocupa el ancho completo en vez de quedar encimado.
+* Tablas: si una tabla no está dentro de un contenedor con scroll horizontal, se la envuelve en uno,
+  para que no rompa el ancho de la página.
+
+Funciona sobre el marcado existente: la barra es el primer ``nav`` o ``header`` con la fila
+``.justify-between.h-16``; su primer hijo es la marca y el último, el grupo de acciones.
+{% endcomment %}
+<style>
+    .gx-menu-btn { display: none; }
+    @media (max-width: 767.98px) {
+        html, body { max-width: 100%; }
+        .gx-barra { flex-wrap: wrap; height: auto !important; min-height: 4rem; padding-top: .5rem; padding-bottom: .5rem; row-gap: .25rem; }
+        .gx-barra > :first-child { flex: 1 1 0%; min-width: 0; flex-wrap: wrap; row-gap: .25rem; }
+        .gx-barra > :first-child span, .gx-barra > :first-child h1, .gx-barra > :first-child p { overflow-wrap: anywhere; }
+        .gx-menu-btn {
+            display: inline-flex; align-items: center; justify-content: center; flex: none;
+            width: 2.5rem; height: 2.5rem; margin-left: .5rem; border-radius: .5rem;
+            background: rgba(30, 41, 59, 1); border: 1px solid rgba(71, 85, 105, 1); color: #fff; cursor: pointer;
+        }
+        .gx-menu-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+        .gx-acciones {
+            display: none !important; flex-basis: 100%; width: 100%;
+            flex-direction: column; align-items: stretch !important; gap: .6rem;
+            padding: .75rem 0 .5rem; margin-top: .25rem; border-top: 1px solid rgba(148, 163, 184, .25);
+        }
+        .gx-barra.gx-abierta .gx-acciones { display: flex !important; }
+        .gx-acciones > * { margin: 0 !important; max-width: 100%; }
+        .gx-acciones > div:not(.hidden), .gx-acciones > form:not(.hidden) {
+            display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; width: 100%;
+        }
+        .gx-acciones > div > * { margin: 0 !important; }
+        .gx-acciones select { flex: 1 1 12rem; min-width: 0; max-width: 100%; padding: .55rem .5rem; font-size: .875rem; }
+        .gx-acciones a, .gx-acciones button, .gx-acciones input[type="submit"] {
+            display: flex; justify-content: center; align-items: center; text-align: center;
+            flex: 1 1 auto; padding-top: .6rem; padding-bottom: .6rem;
+        }
+        .gx-tabla-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+</style>
+<script>
+    (function () {
+        function prepararBarra() {
+            var fila = document.querySelector('nav .justify-between.h-16, header .justify-between.h-16');
+            if (!fila || fila.getAttribute('data-gx-responsive')) { return; }
+            var hijos = Array.prototype.filter.call(fila.children, function (el) { return el.tagName !== 'SCRIPT'; });
+            if (hijos.length < 2) { return; }
+            var acciones = hijos[hijos.length - 1];
+            fila.setAttribute('data-gx-responsive', '1');
+            fila.classList.add('gx-barra');
+            acciones.classList.add('gx-acciones');
+            if (!acciones.id) { acciones.id = 'gx-acciones-barra'; }
+
+            var boton = document.createElement('button');
+            boton.type = 'button';
+            boton.className = 'gx-menu-btn';
+            boton.setAttribute('aria-controls', acciones.id);
+            boton.setAttribute('aria-expanded', 'false');
+            boton.setAttribute('aria-label', 'Abrir menú');
+            boton.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+            boton.addEventListener('click', function () {
+                var abierta = fila.classList.toggle('gx-abierta');
+                boton.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+                boton.setAttribute('aria-label', abierta ? 'Cerrar menú' : 'Abrir menú');
+            });
+            fila.insertBefore(boton, acciones);
+        }
+
+        function tieneScrollHorizontal(el) {
+            for (var nodo = el.parentElement; nodo && nodo !== document.body; nodo = nodo.parentElement) {
+                var overflow = window.getComputedStyle(nodo).overflowX;
+                if (overflow === 'auto' || overflow === 'scroll') { return true; }
+            }
+            return false;
+        }
+
+        function envolverTablas() {
+            Array.prototype.forEach.call(document.querySelectorAll('table'), function (tabla) {
+                if (tieneScrollHorizontal(tabla)) { return; }
+                var envoltorio = document.createElement('div');
+                envoltorio.className = 'gx-tabla-scroll';
+                tabla.parentNode.insertBefore(envoltorio, tabla);
+                envoltorio.appendChild(tabla);
+            });
+        }
+
+        function iniciar() { prepararBarra(); envolverTablas(); }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciar);
+        } else {
+            iniciar();
+        }
+    })();
+</script>

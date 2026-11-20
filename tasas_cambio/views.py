@@ -6,12 +6,16 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from decimal import Decimal
+from authentication.permisos import puede_operar_como_cliente
+from tasas_cambio.comision import FACTOR_NETO
+from tasas_cambio.divisas_default import DIVISAS_DEFAULT, DIVISAS_DEFAULT_SIN_SIMBOLO
 from datetime import timedelta
 import random
 import time
 from urllib.parse import urlencode
 from django.urls import reverse
 from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion, ClientAccreditationMethod
+from authentication.permisos import requiere_permiso, tiene_permiso, denegar_acceso
 from .models import ExchangeRate, ExchangeRateHistory, ClientBenefitRule, PaymentMethod
 
 LIMITE_MINIMO_OPERACION_PYG = Decimal('50000.00')
@@ -50,6 +54,7 @@ def ensure_default_benefit_rules():
     )
 
 
+@requiere_permiso('can_view_rates', permitir_anonimo=True)
 def public_rates_view(request):
     """
     Vista pública y en tiempo real de las tasas de cambio (PSE-9).
@@ -64,13 +69,7 @@ def public_rates_view(request):
         HttpResponse: Página renderizada con la pizarra de cotizaciones y beneficios.
     """
     # Asegurar que existan las 5 divisas predeterminadas
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
 
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
@@ -138,10 +137,17 @@ def public_rates_view(request):
 def get_active_client(user, request=None):
     """
     Retorna la instancia del Cliente activo en la sesión o relación del usuario (PSE-13 / Multi-cliente).
+
+    Un usuario con rol del personal (Administrador, Analista, Cajero) no opera como cliente aunque esté
+    asociado a uno: para él no hay cliente activo.
     """
     if not user or not user.is_authenticated:
         return None
     if request and request.session.get('user_mode', False):
+        return None
+    if not puede_operar_como_cliente(user):
+        if request:
+            request.session.pop('active_client_id', None)
         return None
     
     active_client = None
@@ -209,6 +215,8 @@ def get_user_effective_category(user, request=None):
     try:
         if request and request.session.get('user_mode', False):
             return 'MINORISTA'
+        if not puede_operar_como_cliente(user):
+            return 'MINORISTA'
 
         active_client = get_active_client(user, request=request)
         if active_client:
@@ -230,7 +238,50 @@ class SimuladorConversionService:
     """
 
     @staticmethod
-    def simular(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None):
+    def simular(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None,
+                incluir_comision=False):
+        """
+        Simula una conversión y, si se pide, incluye la comisión online dentro de la tasa.
+
+        Con ``incluir_comision=True`` (simulador del cliente y operaciones online) la tasa devuelta en
+        ``applied_rate`` y el ``converted_amount`` ya llevan el cargo de comisión + IVA
+        (``tasas_cambio.comision``), sin mostrarlo como un concepto aparte. Sin ese parámetro (conversiones
+        internas entre cuentas) se devuelve la conversión pura.
+
+        Además del resultado de ``_simular_sin_comision`` agrega ``converted_amount_sin_comision``,
+        ``tasa_sin_comision`` y ``comision_incluida``.
+
+        Returns:
+            dict: Resultado de la simulación.
+        """
+        resultado = SimuladorConversionService._simular_sin_comision(
+            from_currency, to_currency, amount, user=user, request=request, client=client,
+            category_override=category_override,
+        )
+        resultado['converted_amount_sin_comision'] = resultado['converted_amount']
+        resultado['tasa_sin_comision'] = resultado['applied_rate']
+        resultado['comision_incluida'] = False
+        if not incluir_comision or from_currency == to_currency:
+            return resultado
+
+        monto = resultado['amount']
+        if from_currency == 'PYG':
+            tasa = (resultado['applied_rate'] / FACTOR_NETO).quantize(Decimal('0.0001'))
+            convertido = (monto / tasa).quantize(Decimal('0.01'))
+        elif to_currency == 'PYG':
+            tasa = (resultado['applied_rate'] * FACTOR_NETO).quantize(Decimal('0.0001'))
+            convertido = (monto * tasa).quantize(Decimal('0.01'))
+        else:
+            compra, venta = resultado['tasa_compra_origen'], resultado['tasa_venta_destino']
+            tasa = (compra * FACTOR_NETO / venta).quantize(Decimal('0.0001'))
+            convertido = (monto * compra * FACTOR_NETO / venta).quantize(Decimal('0.01'))
+        resultado['applied_rate'] = tasa
+        resultado['converted_amount'] = convertido
+        resultado['comision_incluida'] = True
+        return resultado
+
+    @staticmethod
+    def _simular_sin_comision(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None):
         """
         Simula una conversión monetaria entre dos divisas aplicando reglas de beneficio parametrizables.
 
@@ -417,6 +468,8 @@ class SimuladorConversionService:
                 'amount': amount_dec,
                 'converted_amount': converted_amount,
                 'applied_rate': effective_rate,
+                'tasa_compra_origen': custom_buy,
+                'tasa_venta_destino': custom_sell,
                 'standard_rate': std_sell,
                 'operation_type': 'CRUZADA',
                 'benefit_percentage': benefit_percentage,
@@ -542,18 +595,13 @@ def construir_propuesta_operacion(simulation_result, operacion, request):
     return propuesta
 
 
+@requiere_permiso('can_simulate', permitir_anonimo=True)
 def currency_simulator_view(request):
     """
     Vista web para el simulador de conversión de divisas (PSE-11).
     Permite ingresar montos, seleccionar monedas de origen y destino, y visualizar cotizaciones exactas.
     """
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,
@@ -590,7 +638,8 @@ def currency_simulator_view(request):
                 to_currency=to_currency,
                 amount=amount_str,
                 user=request.user,
-                request=request
+                request=request,
+                incluir_comision=True,
             )
             operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
         except ValidationError as e:
@@ -606,7 +655,8 @@ def currency_simulator_view(request):
                     to_currency=to_currency,
                     amount=amount_str,
                     user=request.user,
-                    request=request
+                    request=request,
+                    incluir_comision=True,
                 )
                 operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
             except ValidationError as e:
@@ -682,13 +732,7 @@ def populate_mock_history():
     if ExchangeRateHistory.objects.exists():
         return
 
-    base_rates = {
-        'USD': (Decimal('7300.0000'), Decimal('7450.0000')),
-        'EUR': (Decimal('7900.0000'), Decimal('8150.0000')),
-        'BRL': (Decimal('1350.0000'), Decimal('1450.0000')),
-        'ARS': (Decimal('7.5000'), Decimal('9.0000')),
-        'PYG': (Decimal('1.0000'), Decimal('1.0000')),
-    }
+    base_rates = {codigo: (compra, venta) for codigo, _, _, compra, venta in DIVISAS_DEFAULT}
 
     now = timezone.now()
     random.seed(42)  # Semilla fija para consistencia en pruebas
@@ -711,6 +755,7 @@ def populate_mock_history():
             )
 
 
+@requiere_permiso('can_view_rates', permitir_anonimo=True)
 def rates_evolution_api(request):
     """
     API JSON para obtener el historial de evolución de tasas de cambio (PSE-10).
@@ -782,6 +827,7 @@ def rates_evolution_api(request):
     })
 
 
+@requiere_permiso('can_view_rates', permitir_anonimo=True)
 def rates_evolution_view(request):
     """
     Vista web para el gráfico interactivo de evolución de tasas de cambio (PSE-10).
@@ -807,6 +853,7 @@ def rates_evolution_view(request):
 
 
 @login_required
+@requiere_permiso('can_manage_benefits')
 def client_benefit_config_view(request):
     """
     Vista del panel de administración para configurar dinámicamente los porcentajes de beneficio
@@ -819,8 +866,6 @@ def client_benefit_config_view(request):
         HttpResponse: Página renderizada del panel de configuración de beneficios.
     """
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if not (request.user.is_superuser or (profile.role and profile.role.name.lower() in ['admin', 'administrador'])):
-        return redirect('tasas_cambio:rates_board')
 
     ensure_default_benefit_rules()
     success_message = None
@@ -853,7 +898,12 @@ def ensure_default_payment_methods():
     """
     Asegura que existan los métodos de pago predeterminados en la base de datos (PSE-25),
     incluyendo tarjetas de crédito y débito, transferencias y billeteras con campos de número de cuenta y banco.
+
+    Solo los carga cuando no hay ningún método de pago (instalación inicial): si el administrador
+    elimina alguno desde el panel, no se vuelve a crear al recargar la página ni al reiniciar el sistema.
     """
+    if PaymentMethod.objects.exists():
+        return
     PaymentMethod.objects.get_or_create(
         code='TARJETA_CREDITO',
         defaults={
@@ -922,6 +972,7 @@ def ensure_default_payment_methods():
 
 
 @login_required
+@requiere_permiso('can_manage_payment_config')
 def currency_payment_config_view(request):
     """
     Vista de administración con funcionalidad CRUD completa para Divisas y Métodos de Pago (PSE-25),
@@ -934,18 +985,10 @@ def currency_payment_config_view(request):
         HttpResponse: Página renderizada del panel CRUD de divisas y métodos de pago.
     """
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if not (request.user.is_superuser or (profile.role and profile.role.name.lower() in ['admin', 'administrador'])):
-        return redirect('tasas_cambio:rates_board')
 
     ensure_default_payment_methods()
     
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', '$', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', '€', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', 'R$', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', '$', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', '₲', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT
     for code, name, symbol, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,
@@ -1051,6 +1094,7 @@ def currency_payment_config_view(request):
 
 
 @login_required
+@requiere_permiso('can_manage_rates')
 def rates_manager_view(request):
     """
     Vista de administración y operador para el Gestor y CRUD de Cotizaciones de Divisas (PSE-30).
@@ -1068,8 +1112,6 @@ def rates_manager_view(request):
         HttpResponse: Página renderizada con el panel Gestor de Cotizaciones e Historial.
     """
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if not (request.user.is_superuser or (profile.role and profile.role.name.lower() in ['admin', 'administrador', 'operador', 'cajero'])):
-        return redirect('tasas_cambio:rates_board')
 
     success_message = None
     error_message = None
@@ -1323,6 +1365,7 @@ def check_and_trigger_rate_alerts(currency_code, new_buy_rate, new_sell_rate):
 
 
 @login_required
+@requiere_permiso('can_manage_alerts')
 def currency_alerts_view(request):
     """
     Vista de gestión de alertas de tasa de cambio para clientes (PSE-35).

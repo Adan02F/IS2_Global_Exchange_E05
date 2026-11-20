@@ -130,7 +130,8 @@ class SimuladorAOperacionTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.context['amount'], '745000')
-        self.assertEqual(response.context['simulacion_origen']['converted_amount'], Decimal('100.00'))
+        # 745.000 / (7.450 / 0,9945): la comisión va dentro de la tasa que ve el cliente.
+        self.assertEqual(response.context['simulacion_origen']['converted_amount'], Decimal('99.45'))
         self.assertContains(response, 'Compra precargada desde su simulación')
         self.assertContains(response, f'<option value="{self.cuenta_pyg.id}" selected>')
         self.assertContains(response, f'<option value="{self.cuenta_usd.id}" selected>')

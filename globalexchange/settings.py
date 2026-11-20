@@ -14,6 +14,9 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+import django
+from globalexchange.email_config import configurar_mailers, settings_email_clasicos
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
@@ -24,13 +27,37 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
+def env_bool(name, default=False):
+    """Lee una variable de entorno booleana ('true', '1', 'yes', 'on' => True)."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('true', '1', 'yes', 'on')
+
+
+def env_list(name, default=''):
+    """Lee una variable de entorno con valores separados por comas y devuelve una lista sin vacíos."""
+    return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
+
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*^pm7b%^e43^9+r^v7oo8lxlzh7z6n@hx65rypp*cwm$8kf(3r'
+# PSE-40: en producción se toma de SECRET_KEY (.env.production); el valor por defecto es solo para desarrollo.
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-*^pm7b%^e43^9+r^v7oo8lxlzh7z6n@hx65rypp*cwm$8kf(3r')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS')
+
+# Orígenes HTTPS confiables para formularios detrás del proxy (ej: https://globalexchange-g05.duckdns.org)
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+
+# Detrás de Caddy (proxy inverso con HTTPS) Django debe confiar en X-Forwarded-Proto.
+if env_bool('USE_X_FORWARDED_PROTO', default=False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 # Application definition
@@ -62,12 +89,15 @@ KEYCLOAK_REDIRECT_URI = os.environ.get('KEYCLOAK_REDIRECT_URI', 'http://localhos
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'authentication.middleware.NotificarErroresAdminMiddleware',
+    'authentication.middleware.MFAPendienteMiddleware',
 ]
 
 ROOT_URLCONF = 'globalexchange.urls'
@@ -82,6 +112,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'authentication.permisos.contexto_permisos',
             ],
         },
     },
@@ -148,6 +179,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+# PSE-40: destino de collectstatic; WhiteNoise sirve estos archivos en producción.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
 # Email
@@ -157,25 +190,30 @@ LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/auth/dashboard/'
 LOGOUT_REDIRECT_URL = '/auth/login/'
 
-# EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-# EMAIL_HOST = os.environ.get('EMAIL_HOST', 'mailpit')
-# EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 1025))
-# EMAIL_USE_TLS = False
-# EMAIL_USE_SSL = False
+# Correo (SMTP real, ej. Gmail con contraseña de aplicación).
+# Sin EMAIL_HOST en el .env, los correos se muestran por consola (desarrollo).
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@globalexchange.com')
-
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+MAILERS = configurar_mailers(os.environ)
+if django.VERSION < (6, 1):
+    # Django 5.x (imagen Docker con Python 3.11) no conoce MAILERS: usa EMAIL_HOST, EMAIL_PORT, etc.
+    globals().update(settings_email_clasicos(MAILERS))
 
 # SIFEN (Factura Segura) Configuration
 SIFEN_API_EMAIL = os.environ.get('SIFEN_API_EMAIL', 'test@facturasegura.com.py')
 SIFEN_API_PASSWORD = os.environ.get('SIFEN_API_PASSWORD', 'testpassword')
 SIFEN_API_BASE_URL = os.environ.get('SIFEN_API_BASE_URL', 'https://apitest.facturasegura.com.py')
-FACTURASEGURA_NUMERO_INICIAL = 138
-FACTURASEGURA_NUMERO_FINAL = 147
+# Rango de facturas (dNumDoc) autorizado por Factura Segura. Configurable por entorno para que local y
+# producción no emitan el mismo número con la misma cuenta (SIFEN rechaza los duplicados).
+FACTURASEGURA_NUMERO_INICIAL = int(os.environ.get('FACTURASEGURA_NUMERO_INICIAL', 138))
+FACTURASEGURA_NUMERO_FINAL = int(os.environ.get('FACTURASEGURA_NUMERO_FINAL', 147))
+
+# Notas de crédito electrónicas (iTiDE = 5): numeración propia, independiente de las facturas.
+# Rango asignado por Factura Segura al establecimiento 001, punto de expedición 003.
+FACTURASEGURA_NC_NUMERO_INICIAL = int(os.environ.get('FACTURASEGURA_NC_NUMERO_INICIAL', 49))
+FACTURASEGURA_NC_NUMERO_FINAL = int(os.environ.get('FACTURASEGURA_NC_NUMERO_FINAL', 60))
+
+# Plazo de SIFEN para cancelar una factura aprobada; pasado este plazo se anula con nota de crédito.
+SIFEN_PLAZO_CANCELACION_HORAS = int(os.environ.get('SIFEN_PLAZO_CANCELACION_HORAS', 48))
 
 FACTURASEGURA_EMISOR_ACTIVIDADES_ECONOMICAS = [
     {

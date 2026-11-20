@@ -30,11 +30,14 @@ class Role(models.Model):
         description (TextField): Descripción detallada del rol y sus privilegios.
         is_active (BooleanField): Indica si el rol está activo en la plataforma.
         permissions (ManyToManyField): Permisos granulares asignados al rol.
+        permisos_configurados (BooleanField): True cuando el administrador ya guardó los permisos
+            del rol; mientras sea False se aplican los permisos por defecto (authentication.permisos).
     """
     name = models.CharField(max_length=50, unique=True, verbose_name="Nombre del Rol")
     description = models.TextField(blank=True, null=True, verbose_name="Descripción")
     is_active = models.BooleanField(default=True, verbose_name="Rol Activo")
     permissions = models.ManyToManyField(Permission, blank=True, related_name='roles', verbose_name="Permisos Asignados")
+    permisos_configurados = models.BooleanField(default=False, verbose_name="Permisos Configurados por el Administrador")
 
     def __str__(self):
         """Devuelve el nombre del rol como representación en cadena."""
@@ -47,7 +50,8 @@ class UserProfile(models.Model):
     
     Attributes:
         user (OneToOneField): Relación uno a uno con el modelo User de Django.
-        role (ForeignKey): Rol asignado al usuario.
+        role (ForeignKey): Rol principal y único del usuario (Admin, Analista, Cajero o Cliente; vacío = usuario
+            sin rol). Los roles no se superponen: no hay roles adicionales.
         is_corporate (BooleanField): Indicador si el usuario es cliente corporativo.
         mfa_enabled (BooleanField): Indicador si MFA/iToken está habilitado.
         itoken_verified (BooleanField): Indicador si el iToken ha sido verificado en la sesión.
@@ -64,7 +68,6 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="Usuario")
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Rol")
-    roles = models.ManyToManyField(Role, blank=True, related_name='user_profiles', verbose_name="Roles Adicionales")
     is_corporate = models.BooleanField(default=False, verbose_name="Es Cliente Corporativo")
     mfa_enabled = models.BooleanField(default=False, verbose_name="MFA / iToken Habilitado")
     itoken_verified = models.BooleanField(default=False, verbose_name="iToken Verificado")
