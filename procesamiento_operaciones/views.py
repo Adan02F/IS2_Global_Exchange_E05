@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.db import models
 from decimal import Decimal
+from tasas_cambio.divisas_default import DIVISAS_DEFAULT, TASA_COMPRA_DEFAULT
 import time
 import csv
 import uuid
@@ -945,7 +946,7 @@ class CurrencySaleService:
                 custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
                 eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = amount_dec * Decimal('7300.00')
+                eval_amount_pyg = amount_dec * TASA_COMPRA_DEFAULT['USD']
         else:
             eval_amount_pyg = amount_dec
 
@@ -1123,7 +1124,7 @@ class CurrencySaleService:
                 custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
                 eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = amount_dec * Decimal('7300.00')
+                eval_amount_pyg = amount_dec * TASA_COMPRA_DEFAULT['USD']
         else:
             eval_amount_pyg = amount_dec
 
@@ -1327,13 +1328,7 @@ def currency_sale_view(request):
     ensure_default_payment_methods()
     ensure_default_benefit_rules()
 
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', '$', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', '€', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', 'R$', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', '$', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', '₲', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT
     for code, name, symbol, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,
@@ -1722,7 +1717,7 @@ class CurrencyPurchaseService:
                 custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
                 eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = amount_dec * Decimal('7300.00')
+                eval_amount_pyg = amount_dec * TASA_COMPRA_DEFAULT['USD']
         else:
             eval_amount_pyg = amount_dec
         if from_currency != 'PYG':
@@ -1921,7 +1916,7 @@ class CurrencyPurchaseService:
                 custom_buy = r_from.buy_rate * (Decimal('1.00') + (benefit_pct / Decimal('100.00')))
                 eval_amount_pyg = amount_dec * custom_buy
             except Exception:
-                eval_amount_pyg = amount_dec * Decimal('7300.00')
+                eval_amount_pyg = amount_dec * TASA_COMPRA_DEFAULT['USD']
         else:
             eval_amount_pyg = amount_dec
 
@@ -2169,13 +2164,7 @@ def currency_purchase_view(request):
     ensure_default_payment_methods()
     ensure_default_benefit_rules()
 
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', '$', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', '€', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', 'R$', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', '$', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', '₲', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT
     for code, name, symbol, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,

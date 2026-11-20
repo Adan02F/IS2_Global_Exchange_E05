@@ -3,7 +3,7 @@
 Vistas del módulo de Monitoreo Corporativo.
 
 PSE-41: panel de reportes financieros de transacciones y ganancias, con vista previa web,
-descarga en CSV (se abre en Excel) y vista de impresión para guardar como PDF desde el navegador.
+descarga en CSV (se abre en Excel), descarga en PDF y vista de impresión del navegador.
 
 PSE-24: dashboard de ganancias cambiarias en tiempo real (polling a una API JSON) con gráfico
 de barras mensual por divisa, consolidado en PYG.
@@ -23,6 +23,7 @@ from . import dashboard, reportes
 
 FORMATO_CSV = 'csv'
 FORMATO_PDF = 'pdf'
+FORMATO_IMPRIMIR = 'imprimir'
 
 
 def opciones_monedas():
@@ -98,14 +99,14 @@ def reporte_financiero_view(request):
     Muestra los filtros y la vista previa del informe con sus totales. Con los mismos filtros:
 
     * ``?formato=csv`` descarga el CSV (Excel/CSV).
-    * ``?formato=pdf`` muestra la vista de impresión, que se guarda como PDF con
-      ``window.print()`` (mismo enfoque que la planilla de cierre de caja).
+    * ``?formato=pdf`` descarga el archivo PDF generado en el servidor.
+    * ``?formato=imprimir`` muestra la vista de impresión del navegador (``window.print()``).
 
     Args:
         request (HttpRequest): Solicitud GET con los filtros.
 
     Returns:
-        HttpResponse: Página del reporte, vista de impresión o archivo CSV.
+        HttpResponse: Página del reporte, vista de impresión o archivo CSV/PDF.
     """
     form = FiltroReporteForm(request.GET or None)
     filas, totales, filtros_validos = [], reportes.TotalesReporte(), True
@@ -118,12 +119,18 @@ def reporte_financiero_view(request):
         filas, totales = reportes.generar_reporte(filtros)
 
     formato = request.GET.get('formato', '').lower()
-    if formato in (FORMATO_CSV, FORMATO_PDF) and filtros_validos:
+    if formato in (FORMATO_CSV, FORMATO_PDF, FORMATO_IMPRIMIR) and filtros_validos:
         datos = form.cleaned_data if form.is_bound else {}
         descripcion = reportes.descripcion_filtros(filtros, datos.get('cajero'), datos.get('cliente'))
         if formato == FORMATO_CSV:
             respuesta = HttpResponse(reportes.exportar_csv(filas, totales, descripcion), content_type='text/csv; charset=utf-8')
             nombre = f"reporte_financiero_{timezone.localtime().strftime('%Y%m%d_%H%M')}.csv"
+            respuesta['Content-Disposition'] = f'attachment; filename="{nombre}"'
+            return respuesta
+        if formato == FORMATO_PDF:
+            generado = timezone.localtime()
+            respuesta = HttpResponse(reportes.exportar_pdf(filas, totales, descripcion, generado), content_type='application/pdf')
+            nombre = f"reporte_financiero_{generado.strftime('%Y%m%d_%H%M')}.pdf"
             respuesta['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return respuesta
         return render(request, 'monitoreo_corporativo/reporte_financiero_imprimir.html', {

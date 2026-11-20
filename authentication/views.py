@@ -13,6 +13,7 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.db import models
 from decimal import Decimal
+from tasas_cambio.divisas_default import DIVISAS_DEFAULT_SIN_SIMBOLO
 from django.utils import timezone
 from .models import UserProfile, AuditLog, Role, Permission, CorporateGroup, GroupMembership, ClientRegistrationRequest, MemberRequest
 from tasas_cambio.models import ExchangeRate
@@ -62,13 +63,7 @@ def login_view(request):
     Returns:
         HttpResponse: Respuesta renderizada con la plantilla de login y cotizaciones.
     """
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
 
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
@@ -444,13 +439,7 @@ def dashboard_redirect_view(request):
 
     interface_ctx = get_user_interface_context(request, profile)
 
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
 
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(

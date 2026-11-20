@@ -6,3 +6,4 @@ pdoc>=14.0.0
 psycopg2-binary>=2.9.0
 gunicorn>=21.0.0
 whitenoise>=6.6.0
+reportlab>=4.0

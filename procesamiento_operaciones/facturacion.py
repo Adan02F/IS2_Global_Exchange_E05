@@ -105,8 +105,11 @@ def anulacion_vigente(tx):
 
 
 def es_operacion_de_ventanilla(tx):
-    """Las operaciones de ventanilla se pagan en efectivo en la caja física."""
-    return tx.payment_method_type == "EFECTIVO_VENTANILLA"
+    """
+    Operaciones en efectivo: ventanilla o terminal de autoservicio. Se pagan en billetes, por eso
+    su anulación no devuelve saldos en cuentas sino que se resuelve en la sucursal.
+    """
+    return tx.payment_method_type in ("EFECTIVO_VENTANILLA", "EFECTIVO_TERMINAL")
 
 
 def solicitud_pendiente(tx):

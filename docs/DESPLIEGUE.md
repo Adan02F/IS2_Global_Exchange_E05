@@ -19,7 +19,8 @@ Producción actual: servidor **AWS EC2 t4g.small** (Ubuntu 24.04 ARM, 2 GB RAM, 
 2. `python manage.py migrate`: crea o actualiza la **base de datos**.
 3. `python manage.py seed_data`: **población inicial** idempotente:
    divisas (USD, EUR, BRL, ARS, PYG), denominaciones de billetes, métodos de pago, tabla de comisiones
-   (Minorista 0 %, VIP 2 %, Corporativo 4 %), roles, cajas C01/C02, cliente demo y usuarios de prueba.
+   (Minorista 0 %, VIP 2 %, Corporativo 4 %), roles, cajas C01/C02, terminal de autoservicio T01
+   (50 billetes de cada denominación, solo al crearla), cliente demo y usuarios de prueba.
 4. `python manage.py keycloak_bootstrap` (en segundo plano): URL de callback del dominio en el cliente OIDC,
    usuarios de prueba en Keycloak y servidor SMTP (Gmail) del realm para los correos de verificación.
 5. (prod) `collectstatic` y Gunicorn.

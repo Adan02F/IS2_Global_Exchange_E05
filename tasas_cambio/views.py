@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from decimal import Decimal
+from tasas_cambio.divisas_default import DIVISAS_DEFAULT, DIVISAS_DEFAULT_SIN_SIMBOLO
 from datetime import timedelta
 import random
 import time
@@ -66,13 +67,7 @@ def public_rates_view(request):
         HttpResponse: Página renderizada con la pizarra de cotizaciones y beneficios.
     """
     # Asegurar que existan las 5 divisas predeterminadas
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
 
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
@@ -550,13 +545,7 @@ def currency_simulator_view(request):
     Vista web para el simulador de conversión de divisas (PSE-11).
     Permite ingresar montos, seleccionar monedas de origen y destino, y visualizar cotizaciones exactas.
     """
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT_SIN_SIMBOLO
     for code, name, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,
@@ -685,13 +674,7 @@ def populate_mock_history():
     if ExchangeRateHistory.objects.exists():
         return
 
-    base_rates = {
-        'USD': (Decimal('7300.0000'), Decimal('7450.0000')),
-        'EUR': (Decimal('7900.0000'), Decimal('8150.0000')),
-        'BRL': (Decimal('1350.0000'), Decimal('1450.0000')),
-        'ARS': (Decimal('7.5000'), Decimal('9.0000')),
-        'PYG': (Decimal('1.0000'), Decimal('1.0000')),
-    }
+    base_rates = {codigo: (compra, venta) for codigo, _, _, compra, venta in DIVISAS_DEFAULT}
 
     now = timezone.now()
     random.seed(42)  # Semilla fija para consistencia en pruebas
@@ -947,13 +930,7 @@ def currency_payment_config_view(request):
 
     ensure_default_payment_methods()
     
-    default_rates = [
-        ('USD', 'Dólar Estadounidense', '$', Decimal('7300.0000'), Decimal('7450.0000')),
-        ('EUR', 'Euro', '€', Decimal('7900.0000'), Decimal('8150.0000')),
-        ('BRL', 'Real Brasileño', 'R$', Decimal('1350.0000'), Decimal('1450.0000')),
-        ('ARS', 'Peso Argentino', '$', Decimal('7.5000'), Decimal('9.0000')),
-        ('PYG', 'Guaraní Paraguayo', '₲', Decimal('1.0000'), Decimal('1.0000')),
-    ]
+    default_rates = DIVISAS_DEFAULT
     for code, name, symbol, buy, sell in default_rates:
         ExchangeRate.objects.get_or_create(
             currency_code=code,

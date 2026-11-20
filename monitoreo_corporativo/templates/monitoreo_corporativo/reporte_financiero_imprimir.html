@@ -65,6 +65,8 @@
                 <th class="px-2 py-1.5 text-right">Volumen (PYG)</th>
                 <th class="px-2 py-1.5 text-right">Comisión (PYG)</th>
                 <th class="px-2 py-1.5 text-right">IVA (PYG)</th>
+                <th class="px-2 py-1.5 text-right">Margen Cambiario (PYG)</th>
+                <th class="px-2 py-1.5 text-right">Beneficio Cliente (PYG)</th>
                 <th class="px-2 py-1.5 text-right">Ganancia Neta (PYG)</th>
             </tr>
         </thead>
@@ -82,10 +84,12 @@
                 <td class="px-2 py-1 text-right num">{{ fila.volumen_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1 text-right num">{{ fila.comision_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1 text-right num">{{ fila.iva_pyg|floatformat:"2g" }}</td>
+                <td class="px-2 py-1 text-right num">{{ fila.margen_cambiario_pyg|floatformat:"2g" }}</td>
+                <td class="px-2 py-1 text-right num">{{ fila.beneficio_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1 text-right num font-semibold text-green-700">{{ fila.ganancia_neta_pyg|floatformat:"2g" }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="12" class="px-2 py-6 text-center text-slate-500">Sin operaciones para los filtros elegidos.</td></tr>
+            <tr><td colspan="14" class="px-2 py-6 text-center text-slate-500">Sin operaciones para los filtros elegidos.</td></tr>
             {% endfor %}
         </tbody>
         <tfoot class="bg-slate-200 font-bold">
@@ -94,6 +98,8 @@
                 <td class="px-2 py-1.5 text-right num">{{ totales.volumen_total_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1.5 text-right num">{{ totales.comision_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1.5 text-right num">{{ totales.iva_pyg|floatformat:"2g" }}</td>
+                <td class="px-2 py-1.5 text-right num">{{ totales.margen_cambiario_pyg|floatformat:"2g" }}</td>
+                <td class="px-2 py-1.5 text-right num">{{ totales.beneficio_pyg|floatformat:"2g" }}</td>
                 <td class="px-2 py-1.5 text-right num text-green-700">{{ totales.ganancia_neta_pyg|floatformat:"2g" }}</td>
             </tr>
         </tfoot>

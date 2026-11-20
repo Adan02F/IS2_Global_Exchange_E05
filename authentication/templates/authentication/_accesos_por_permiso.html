@@ -65,6 +65,11 @@ Parámetros opcionales: excluir_caja (no mostrar "Turnos y Cajas"), excluir_audi
     <p class="text-sm text-slate-600 mb-4">Cajas físicas y asignación de cajeros.</p>
     <a href="{% url 'caja:gestion_cajas_admin' %}" class="text-blue-800 font-semibold text-sm hover:underline">Gestionar Cajas &rarr;</a>
 </div>
+<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'caja:terminales_admin' %}'">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2">Terminales de Autoservicio</h3>
+    <p class="text-sm text-slate-600 mb-4">Recarga de billetes y operaciones en efectivo sin cajero.</p>
+    <a href="{% url 'caja:terminales_admin' %}" class="text-blue-800 font-semibold text-sm hover:underline">Gestionar Terminales &rarr;</a>
+</div>
 {% endif %}
 {% if 'can_manage_invoices' in permisos %}
 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'procesamiento_operaciones:admin_facturacion' %}'">

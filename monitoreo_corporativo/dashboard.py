@@ -10,7 +10,11 @@ Integra en un solo panel:
 
 La moneda base obligatoria es el Guaraní (PYG): todos los importes se consolidan en PYG
 con el mismo cálculo del reporte financiero de PSE-41 (``monitoreo_corporativo.reportes``):
-solo operaciones ``SUCCESS`` y ganancia neta = comisión − IVA, convertidas a PYG.
+solo operaciones ``SUCCESS`` y ganancia neta = (comisión − IVA) + margen cambiario, en PYG.
+El margen se mide contra la tasa media de pizarra del momento de cada operación, por eso ya
+descuenta el beneficio otorgado al cliente (VIP / Corporativo), que además se informa aparte.
+Las operaciones pueden ser entre dos divisas extranjeras (ej. EUR pagado con USD): el margen de
+cada pata se atribuye a su divisa en el gráfico.
 
 La página se actualiza en tiempo real por polling: el navegador consulta periódicamente
 la API JSON (``datos_dashboard``), igual que la API de evolución de tasas (PSE-10).
@@ -45,9 +49,7 @@ def divisa_de_operacion(fila):
     Returns:
         str: Código de la divisa (ej. ``USD``).
     """
-    if fila.moneda_origen != MONEDA_BASE:
-        return fila.moneda_origen
-    return fila.moneda_destino
+    return reportes.divisa_de_operacion(fila.moneda_origen, fila.moneda_destino)
 
 
 def ultimos_meses(cantidad, hoy=None):
@@ -109,9 +111,10 @@ def ganancias_mensuales_por_divisa(meses=MESES_POR_DEFECTO, hoy=None):
         posicion = indice.get((fila.fecha.year, fila.fecha.month))
         if posicion is None:
             continue
-        divisa = divisa_de_operacion(fila)
-        por_divisa.setdefault(divisa, [CERO] * len(periodo))
-        por_divisa[divisa][posicion] += fila.ganancia_neta_pyg
+        reparto = fila.ganancia_por_divisa or {divisa_de_operacion(fila): fila.ganancia_neta_pyg}
+        for divisa, importe in reparto.items():
+            por_divisa.setdefault(divisa, [CERO] * len(periodo))
+            por_divisa[divisa][posicion] += importe
         totales[posicion] += fila.ganancia_neta_pyg
 
     return {
@@ -130,13 +133,17 @@ def kpis_periodo(desde, hasta=None):
         hasta (date | None): Fecha final inclusive.
 
     Returns:
-        dict: ``ganancia_neta_pyg``, ``volumen_pyg``, ``comision_pyg`` y ``operaciones``.
+        dict: ``ganancia_neta_pyg``, ``volumen_pyg``, ``comision_pyg``, ``iva_pyg``,
+        ``margen_cambiario_pyg``, ``beneficio_pyg`` y ``operaciones``.
     """
     _, totales = reportes.generar_reporte(reportes.FiltrosReporte(fecha_desde=desde, fecha_hasta=hasta))
     return {
         'ganancia_neta_pyg': totales.ganancia_neta_pyg,
         'volumen_pyg': totales.volumen_total_pyg,
         'comision_pyg': totales.comision_pyg,
+        'iva_pyg': totales.iva_pyg,
+        'margen_cambiario_pyg': totales.margen_cambiario_pyg,
+        'beneficio_pyg': totales.beneficio_pyg,
         'operaciones': totales.cantidad,
     }
 

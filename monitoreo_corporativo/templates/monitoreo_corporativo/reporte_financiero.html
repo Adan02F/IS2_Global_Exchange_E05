@@ -12,6 +12,7 @@
         .campo { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.75rem; padding: 0.55rem 0.75rem; font-size: 0.875rem; background: #fff; }
         .campo:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .15); }
     </style>
+    {% include "authentication/_responsive.html" %}
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 flex flex-col">
     <!-- Navbar -->
@@ -104,7 +105,8 @@
                     <p class="text-xs text-slate-500">Solo operaciones confirmadas (SUCCESS). Importes en Guaraníes (PYG).</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <a href="?{% if consulta %}{{ consulta }}&amp;{% endif %}formato=pdf" target="_blank" class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">Descargar PDF</a>
+                    <a href="?{% if consulta %}{{ consulta }}&amp;{% endif %}formato=pdf" class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">Descargar PDF</a>
+                    <a href="?{% if consulta %}{{ consulta }}&amp;{% endif %}formato=imprimir" target="_blank" class="inline-flex items-center bg-white hover:bg-gray-50 text-blue-700 border border-blue-600 px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">Vista de impresión</a>
                     <a href="?{% if consulta %}{{ consulta }}&amp;{% endif %}formato=csv" class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">Descargar Excel/CSV</a>
                 </div>
             </div>
@@ -123,6 +125,8 @@
                             <th class="px-4 py-3 text-right">Volumen (PYG)</th>
                             <th class="px-4 py-3 text-right">Comisión (PYG)</th>
                             <th class="px-4 py-3 text-right">IVA (PYG)</th>
+                            <th class="px-4 py-3 text-right">Margen Cambiario (PYG)</th>
+                            <th class="px-4 py-3 text-right">Beneficio Cliente (PYG)</th>
                             <th class="px-4 py-3 text-right">Ganancia Neta (PYG)</th>
                         </tr>
                     </thead>
@@ -146,11 +150,13 @@
                             <td class="px-4 py-2.5 text-right num">{{ fila.volumen_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-2.5 text-right num">{{ fila.comision_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-2.5 text-right num">{{ fila.iva_pyg|floatformat:"2g" }}</td>
+                            <td class="px-4 py-2.5 text-right num">{{ fila.margen_cambiario_pyg|floatformat:"2g" }}</td>
+                            <td class="px-4 py-2.5 text-right num text-amber-700">{{ fila.beneficio_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-2.5 text-right num font-semibold text-green-600">{{ fila.ganancia_neta_pyg|floatformat:"2g" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="12" class="px-4 py-10 text-center text-slate-500">No hay operaciones para los filtros elegidos.</td>
+                            <td colspan="14" class="px-4 py-10 text-center text-slate-500">No hay operaciones para los filtros elegidos.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -160,6 +166,8 @@
                             <td class="px-4 py-3 text-right num font-semibold">{{ totales.volumen_total_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-3 text-right num font-semibold">{{ totales.comision_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-3 text-right num font-semibold">{{ totales.iva_pyg|floatformat:"2g" }}</td>
+                            <td class="px-4 py-3 text-right num font-semibold">{{ totales.margen_cambiario_pyg|floatformat:"2g" }}</td>
+                            <td class="px-4 py-3 text-right num font-semibold">{{ totales.beneficio_pyg|floatformat:"2g" }}</td>
                             <td class="px-4 py-3 text-right num font-bold text-green-400">₲ {{ totales.ganancia_neta_pyg|floatformat:"2g" }}</td>
                         </tr>
                     </tfoot>

@@ -38,8 +38,8 @@ class SeedDataTests(TestCase):
         codigos = set(ExchangeRate.objects.values_list('currency_code', flat=True))
         self.assertEqual(codigos, {d[0] for d in DIVISAS_DEFAULT})
         usd = ExchangeRate.objects.get(currency_code='USD')
-        self.assertEqual(usd.buy_rate, Decimal('7300.0000'))
-        self.assertEqual(usd.sell_rate, Decimal('7450.0000'))
+        self.assertEqual(usd.buy_rate, Decimal('6830.0000'))
+        self.assertEqual(usd.sell_rate, Decimal('7470.0000'))
 
     def test_carga_metodos_de_pago(self):
         """Debe crear los métodos de pago predeterminados (PSE-25)."""

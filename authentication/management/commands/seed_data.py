@@ -17,18 +17,11 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from authentication.models import Cliente, Role, UserProfile
-from caja.models import Caja, DenominacionDivisa, inicializar_denominaciones_default
+from caja.models import Caja, DenominacionDivisa, TerminalAutoservicio, inicializar_denominaciones_default
+from caja.terminal import crear_terminal_demo
 from tasas_cambio.models import ClientBenefitRule, ExchangeRate, PaymentMethod
+from tasas_cambio.divisas_default import DIVISAS_DEFAULT
 from tasas_cambio.views import ensure_default_benefit_rules, ensure_default_payment_methods
-
-# Divisas operadas por la casa de cambios (código, nombre, símbolo, compra, venta en Gs).
-DIVISAS_DEFAULT = [
-    ('USD', 'Dólar Estadounidense', '$', Decimal('7300.0000'), Decimal('7450.0000')),
-    ('EUR', 'Euro', '€', Decimal('7900.0000'), Decimal('8150.0000')),
-    ('BRL', 'Real Brasileño', 'R$', Decimal('1350.0000'), Decimal('1450.0000')),
-    ('ARS', 'Peso Argentino', '$', Decimal('7.5000'), Decimal('9.0000')),
-    ('PYG', 'Guaraní Paraguayo', '₲', Decimal('1.0000'), Decimal('1.0000')),
-]
 
 # Roles fijos del sistema (mismos nombres que usa authentication.views y Keycloak).
 ROLES_DEFAULT = [
@@ -142,6 +135,7 @@ def seed_all(con_usuarios=True):
         seed_usuarios_prueba(roles)
         seed_cliente_demo()
     seed_cajas(asignar_cajero=con_usuarios)
+    crear_terminal_demo()
     return {
         'divisas': ExchangeRate.objects.count(),
         'denominaciones': DenominacionDivisa.objects.count(),
@@ -150,6 +144,7 @@ def seed_all(con_usuarios=True):
         'roles': Role.objects.count(),
         'usuarios': User.objects.count(),
         'cajas': Caja.objects.count(),
+        'terminales': TerminalAutoservicio.objects.count(),
     }
 
 

@@ -10,6 +10,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
     </style>
+    {% include "authentication/_responsive.html" %}
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col justify-between">
     <!-- Navbar -->
@@ -183,6 +184,11 @@
                 <h3 class="text-lg font-semibold text-slate-800 mb-2">Vender Divisas</h3>
                 <p class="text-sm text-slate-600 mb-4">Venda sus divisas con aplicación de la tasa de compra vigente y acreditación en cuenta vinculada.</p>
                 <a href="{% url 'procesamiento_operaciones:currency_sale' %}" class="text-blue-800 font-semibold text-sm hover:underline">Iniciar Venta &rarr;</a>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 transition cursor-pointer" onclick="window.location.href='{% url 'caja:terminal_cliente' %}'">
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Terminal de Autoservicio</h3>
+                <p class="text-sm text-slate-600 mb-4">Compre o venda divisas en efectivo en una terminal, sin pasar por ventanilla.</p>
+                <a href="{% url 'caja:terminal_cliente' %}" class="text-blue-800 font-semibold text-sm hover:underline">Generar Código &rarr;</a>
             </div>
             {% endif %}
             {% if 'can_simulate' in permisos %}

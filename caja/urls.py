@@ -14,4 +14,9 @@ urlpatterns = [
     path('ventanilla/', views.ventanilla_pos_view, name='ventanilla_pos'),
     path('ventanilla/procesar/', views.procesar_ventanilla_view, name='procesar_ventanilla'),
     path('ventanilla/solicitar-anulacion/', views.solicitar_anulacion_factura_caja_view, name='solicitar_anulacion_factura'),
+    # Terminal de autoservicio (TAUser)
+    path('terminal/mis-operaciones/', views.terminal_cliente_view, name='terminal_cliente'),
+    path('terminal/gestion/', views.terminales_admin_view, name='terminales_admin'),
+    path('terminal/<str:codigo_terminal>/', views.terminal_kiosco_view, name='terminal_kiosco'),
+    path('terminal/<str:codigo_terminal>/operacion/', views.terminal_kiosco_operacion_view, name='terminal_kiosco_operacion'),
 ]

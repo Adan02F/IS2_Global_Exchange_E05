@@ -16,7 +16,7 @@ from .models import (
     Caja, TurnoCaja, DenominacionDivisa, DesgloseEfectivoCaja, 
     DetalleDesgloseBillete, ArqueoCaja, BitacoraArqueo, OperacionVentanilla,
     verificar_turno_activo, inicializar_denominaciones_default, procesar_arqueo_cierre,
-    calcular_saldos_actuales_turno
+    calcular_saldos_actuales_turno, TerminalAutoservicio, OperacionTerminal
 )
 from authentication.models import UserProfile, Cliente
 from authentication.permisos import requiere_permiso, tiene_permiso, denegar_acceso
@@ -28,6 +28,7 @@ from procesamiento_operaciones.facturacion import FacturacionError
 from procesamiento_operaciones.views_facturacion import _auditar
 from tasas_cambio.models import ExchangeRate, ClientBenefitRule
 from tasas_cambio.views import ensure_default_benefit_rules
+from .cotizacion import beneficio_de_cliente, cotizar_efectivo
 
 MARCA_COMPROBANTE_VENTANILLA = "Ventanilla Comprobante:"
 
@@ -584,17 +585,7 @@ def ventanilla_pos_view(request):
     if doc_busqueda:
         cliente_encontrado = Cliente.objects.filter(documento_identidad__icontains=doc_busqueda).first()
         if cliente_encontrado:
-            cat = cliente_encontrado.categoria or 'MINORISTA'
-            rule = ClientBenefitRule.objects.filter(category_code__iexact=cat).first()
-            if rule:
-                benefit_percentage = rule.benefit_percentage
-                category_name = rule.category_name
-            elif str(cat).upper() == 'VIP':
-                benefit_percentage = Decimal('2.00')
-                category_name = 'VIP'
-            elif str(cat).upper() == 'CORPORATIVO':
-                benefit_percentage = Decimal('4.00')
-                category_name = 'Corporativo'
+            benefit_percentage, category_name = beneficio_de_cliente(cliente_encontrado)
 
     operaciones_recientes = list(
         OperacionVentanilla.objects.filter(cajero=request.user).order_by('-fecha')[:10]
@@ -678,76 +669,19 @@ def procesar_ventanilla_view(request):
             messages.error(request, "El monto debe ser mayor a cero.")
             return redirect('caja:ventanilla_pos')
 
-        # Resolver beneficio por categoría del cliente (VIP / Corporativo)
-        ensure_default_benefit_rules()
-        benefit_percentage = Decimal('0.00')
-        category_name = 'Minorista'
-        if cliente:
-            cat = cliente.categoria or 'MINORISTA'
-            rule = ClientBenefitRule.objects.filter(category_code__iexact=cat).first()
-            if rule:
-                benefit_percentage = rule.benefit_percentage
-                category_name = rule.category_name
-            elif str(cat).upper() == 'VIP':
-                benefit_percentage = Decimal('2.00')
-                category_name = 'VIP'
-            elif str(cat).upper() == 'CORPORATIVO':
-                benefit_percentage = Decimal('4.00')
-                category_name = 'Corporativo'
-
-        def get_db_rate(cur):
-            """Obtiene la tasa de base de datos ajustada por beneficio de categoría."""
-            if cur == 'PYG':
-                return Decimal('1.0000')
-            r = ExchangeRate.objects.filter(currency_code=cur).first()
-            if not r:
-                defaults = {'USD': Decimal('7300'), 'EUR': Decimal('7800'), 'BRL': Decimal('1400'), 'ARS': Decimal('7.5')}
-                return defaults.get(cur, Decimal('7300'))
-            base = r.buy_rate if tipo_operacion == 'COMPRA' else r.sell_rate
-            if benefit_percentage > 0:
-                if tipo_operacion == 'COMPRA':
-                    return (base * (Decimal('1.0000') + (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
-                return (base * (Decimal('1.0000') - (benefit_percentage / Decimal('100.00')))).quantize(Decimal('0.0001'))
-            return base
-
-        def get_standard_rate(cur):
-            """Obtiene la tasa estándar (sin beneficio) para trazabilidad en comprobantes."""
-            if cur == 'PYG':
-                return Decimal('1.0000')
-            r = ExchangeRate.objects.filter(currency_code=cur).first()
-            if not r:
-                defaults = {'USD': Decimal('7300'), 'EUR': Decimal('7800'), 'BRL': Decimal('1400'), 'ARS': Decimal('7.5')}
-                return defaults.get(cur, Decimal('7300'))
-            return r.buy_rate if tipo_operacion == 'COMPRA' else r.sell_rate
-
-        tasa_origen = get_db_rate(moneda_origen)
-        tasa_destino = get_db_rate(moneda_destino)
-        std_origen = get_standard_rate(moneda_origen)
-        std_destino = get_standard_rate(moneda_destino)
-
+        # Beneficio por categoría del cliente (VIP / Corporativo) y cotización compartida con la terminal
+        benefit_percentage, category_name = beneficio_de_cliente(cliente)
+        cotizacion = cotizar_efectivo(tipo_operacion, moneda_origen, moneda_destino, monto_input, benefit_percentage)
+        monto_origen = cotizacion.monto_origen
+        monto_destino = cotizacion.monto_destino
+        tasa = cotizacion.tasa
+        tasa_std = cotizacion.tasa_std
+        comision = cotizacion.comision
+        valor_pyg = cotizacion.valor_pyg
+        total_a_cobrar_entregar = cotizacion.total_a_cobrar_entregar
         if tipo_operacion == 'COMPRA':
-            monto_origen = monto_input
-            valor_pyg = monto_origen if moneda_origen == 'PYG' else (monto_origen * tasa_origen)
-            comision = monto_origen * Decimal('0.005') # 0.5%
-            comision_pyg = comision if moneda_origen == 'PYG' else (comision * tasa_origen)
-
-            neto_pyg = valor_pyg - comision_pyg
-            monto_destino = neto_pyg if moneda_destino == 'PYG' else (neto_pyg / tasa_destino if tasa_destino > 0 else neto_pyg)
-            tasa = tasa_origen if moneda_origen != 'PYG' else tasa_destino
-            tasa_std = std_origen if moneda_origen != 'PYG' else std_destino
-            total_a_cobrar_entregar = monto_destino
             vuelto = Decimal('0.00')
         else:
-            monto_destino = monto_input
-            neto_pyg = monto_destino if moneda_destino == 'PYG' else (monto_destino * tasa_destino)
-            valor_pyg = neto_pyg / Decimal('1.005')
-            comision_pyg = neto_pyg - valor_pyg
-            comision = comision_pyg if moneda_origen == 'PYG' else (comision_pyg / tasa_origen if tasa_origen > 0 else comision_pyg)
-            monto_origen = valor_pyg if moneda_origen == 'PYG' else (valor_pyg / tasa_origen if tasa_origen > 0 else valor_pyg)
-
-            tasa = tasa_origen if moneda_origen != 'PYG' else tasa_destino
-            tasa_std = std_origen if moneda_origen != 'PYG' else std_destino
-            total_a_cobrar_entregar = monto_origen
             vuelto = efectivo_recibido - monto_origen if efectivo_recibido > monto_origen else Decimal('0.00')
 
         # Validar saldo suficiente en caja para la moneda de salida (moneda_destino)
@@ -864,3 +798,243 @@ def procesar_ventanilla_view(request):
     except Exception as e:
         messages.error(request, f"Error al procesar operación en ventanilla: {str(e)}")
         return redirect('caja:ventanilla_pos')
+
+
+# ---------------------------------------------------------------------------
+# Terminal de autoservicio (TAUser) - operaciones en efectivo sin cajero
+# ---------------------------------------------------------------------------
+
+DIVISAS_TERMINAL = ['USD', 'EUR', 'BRL', 'ARS']
+SESION_TAUSER = 'tauser_operacion'
+SESION_INTENTOS = 'tauser_intentos'
+MAX_INTENTOS_TERMINAL = 5
+BLOQUEO_TERMINAL_MINUTOS = 5
+
+
+@login_required
+@requiere_permiso('can_perform_exchange')
+def terminal_cliente_view(request):
+    """
+    Página del cliente para generar el código de una operación en efectivo que completará
+    en una terminal de autoservicio, y para ver o cancelar sus códigos pendientes.
+
+    POST ``accion=generar``: crea la operación con ``tipo_operacion``, ``divisa`` y ``monto``.
+    POST ``accion=cancelar``: cancela la operación pendiente ``operacion_id`` del cliente.
+
+    Args:
+        request (HttpRequest): Solicitud del cliente.
+
+    Returns:
+        HttpResponse: Página de la terminal para el cliente o redirección tras la acción.
+    """
+    from procesamiento_operaciones.views import _resolve_active_client
+    from . import terminal as tauser
+
+    cliente = _resolve_active_client(request.user, request)
+    tauser.vencer_operaciones()
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'generar':
+                operacion = tauser.generar_operacion(
+                    request.user, cliente, request.POST.get('tipo_operacion'),
+                    request.POST.get('divisa'), request.POST.get('monto') or '0',
+                )
+                messages.success(request, f"Código generado: {operacion.codigo}. Úselo en cualquier terminal antes de "
+                                          f"las {timezone.localtime(operacion.expira_en).strftime('%H:%M')}.")
+            elif accion == 'cancelar' and cliente is not None:
+                operacion = get_object_or_404(OperacionTerminal, pk=request.POST.get('operacion_id'), cliente=cliente)
+                tauser.cancelar_operacion(operacion, 'Cancelada por el cliente desde la web')
+                messages.success(request, f"Operación {operacion.codigo} cancelada.")
+        except tauser.TerminalError as exc:
+            messages.error(request, str(exc))
+        return redirect('caja:terminal_cliente')
+
+    operaciones = OperacionTerminal.objects.filter(cliente=cliente).select_related('terminal')[:15] if cliente else []
+    return render(request, 'caja/terminal_cliente.html', {
+        'cliente': cliente,
+        'divisas': DIVISAS_TERMINAL,
+        'operaciones': operaciones,
+        'terminales': TerminalAutoservicio.objects.filter(activa=True),
+        'validez_minutos': tauser.validez_minutos(),
+    })
+
+
+def _terminal_bloqueada(request):
+    """Indica si la terminal bloqueó temporalmente esta sesión por demasiados intentos fallidos."""
+    datos = request.session.get(SESION_INTENTOS) or {}
+    hasta = datos.get('hasta')
+    return bool(hasta and timezone.now().timestamp() < hasta)
+
+
+def _registrar_intento_fallido(request):
+    """Cuenta un intento fallido de código; al llegar al máximo bloquea la sesión unos minutos."""
+    datos = request.session.get(SESION_INTENTOS) or {}
+    fallidos = int(datos.get('fallidos', 0)) + 1
+    datos = {'fallidos': fallidos}
+    if fallidos >= MAX_INTENTOS_TERMINAL:
+        datos = {'fallidos': 0, 'hasta': timezone.now().timestamp() + BLOQUEO_TERMINAL_MINUTOS * 60}
+    request.session[SESION_INTENTOS] = datos
+
+
+def terminal_kiosco_view(request, codigo_terminal):
+    """
+    Pantalla de inicio de la terminal de autoservicio (modo kiosco, sin inicio de sesión).
+
+    El cliente ingresa el código de operación y su documento. Tras 5 intentos fallidos la
+    terminal se bloquea 5 minutos para esa sesión.
+
+    Args:
+        request (HttpRequest): Solicitud desde la terminal.
+        codigo_terminal (str): Código de la terminal (ej. T01).
+
+    Returns:
+        HttpResponse: Pantalla de ingreso o redirección a la operación encontrada.
+    """
+    from . import terminal as tauser
+
+    terminal = get_object_or_404(TerminalAutoservicio, codigo=codigo_terminal)
+    error = None
+    if request.method == 'POST' and terminal.activa:
+        if _terminal_bloqueada(request):
+            error = f'Demasiados intentos fallidos. Espere {BLOQUEO_TERMINAL_MINUTOS} minutos.'
+        else:
+            try:
+                operacion = tauser.buscar_operacion(request.POST.get('codigo'), request.POST.get('documento'))
+            except tauser.TerminalError as exc:
+                _registrar_intento_fallido(request)
+                error = str(exc)
+            else:
+                request.session.pop(SESION_INTENTOS, None)
+                request.session[SESION_TAUSER] = {'terminal': terminal.codigo, 'operacion': operacion.pk}
+                return redirect('caja:terminal_kiosco_operacion', codigo_terminal=terminal.codigo)
+    return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'inicio', 'error': error})
+
+
+def terminal_kiosco_operacion_view(request, codigo_terminal):
+    """
+    Operación en curso en la terminal: muestra el resumen, pide aceptar la nueva cotización si
+    cambió, recibe los billetes y entrega el dinero.
+
+    POST ``accion``: ``aceptar_cotizacion``, ``cancelar`` o ``depositar`` (billetes ``billete_<valor>``).
+
+    Args:
+        request (HttpRequest): Solicitud desde la terminal.
+        codigo_terminal (str): Código de la terminal.
+
+    Returns:
+        HttpResponse: Pantalla de la operación, comprobante final o redirección al inicio.
+    """
+    from . import terminal as tauser
+
+    terminal = get_object_or_404(TerminalAutoservicio, codigo=codigo_terminal)
+    sesion = request.session.get(SESION_TAUSER) or {}
+    if sesion.get('terminal') != terminal.codigo:
+        return redirect('caja:terminal_kiosco', codigo_terminal=terminal.codigo)
+    operacion = OperacionTerminal.objects.filter(pk=sesion.get('operacion')).select_related('cliente').first()
+    if operacion is None or operacion.estado != OperacionTerminal.PENDIENTE:
+        request.session.pop(SESION_TAUSER, None)
+        return redirect('caja:terminal_kiosco', codigo_terminal=terminal.codigo)
+
+    error = None
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'cancelar':
+                tauser.cancelar_operacion(operacion, f'Cancelada por el cliente en la terminal {terminal.codigo}')
+                request.session.pop(SESION_TAUSER, None)
+                return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'cancelada', 'operacion': operacion})
+            if accion == 'aceptar_cotizacion':
+                tauser.actualizar_cotizacion(operacion)
+                return redirect('caja:terminal_kiosco_operacion', codigo_terminal=terminal.codigo)
+            if accion == 'depositar':
+                if tauser.cotizacion_cambio(operacion) is not None:
+                    raise tauser.TerminalError('La cotización cambió. Acepte la nueva cotización o cancele la operación.')
+                billetes = {
+                    clave[len('billete_'):]: request.POST.get(clave)
+                    for clave in request.POST if clave.startswith('billete_')
+                }
+                operacion, transaccion = tauser.completar_operacion(operacion, terminal, billetes)
+                request.session.pop(SESION_TAUSER, None)
+                _generar_factura_sifen_async(transaccion)
+                transaccion.refresh_from_db()
+                return render(request, 'caja/terminal_kiosco.html', {
+                    'terminal': terminal, 'paso': 'completada', 'operacion': operacion,
+                    'transaccion': transaccion, 'mensaje_factura': _mensaje_factura(transaccion),
+                })
+        except tauser.TerminalError as exc:
+            error = str(exc)
+            operacion.refresh_from_db()
+            if operacion.estado != OperacionTerminal.PENDIENTE:
+                request.session.pop(SESION_TAUSER, None)
+                return render(request, 'caja/terminal_kiosco.html', {'terminal': terminal, 'paso': 'inicio', 'error': error})
+
+    return render(request, 'caja/terminal_kiosco.html', {
+        'terminal': terminal,
+        'paso': 'operacion',
+        'operacion': operacion,
+        'nueva_cotizacion': tauser.cotizacion_cambio(operacion),
+        'denominaciones_deposito': tauser.denominaciones(operacion.moneda_origen),
+        'error': error,
+    })
+
+
+@login_required
+@requiere_permiso('can_manage_cashboxes')
+def terminales_admin_view(request):
+    """
+    Gestión de terminales de autoservicio para el administrador: alta, activación, recarga y retiro
+    de billetes, y consulta de las últimas operaciones.
+
+    POST ``accion``: ``crear`` (codigo, nombre, ubicacion), ``estado`` (terminal_id),
+    ``recargar`` o ``retirar`` (terminal_id, moneda, ``billete_<valor>``).
+
+    Args:
+        request (HttpRequest): Solicitud del administrador.
+
+    Returns:
+        HttpResponse: Página de gestión o redirección tras la acción.
+    """
+    from . import terminal as tauser
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'crear':
+                codigo = (request.POST.get('codigo') or '').strip().upper()
+                nombre = (request.POST.get('nombre') or '').strip()
+                if not codigo or not nombre:
+                    raise tauser.TerminalError('Indique el código y el nombre de la terminal.')
+                if TerminalAutoservicio.objects.filter(codigo=codigo).exists():
+                    raise tauser.TerminalError(f'Ya existe una terminal con el código {codigo}.')
+                terminal = TerminalAutoservicio.objects.create(
+                    codigo=codigo, nombre=nombre, ubicacion=(request.POST.get('ubicacion') or '').strip(),
+                )
+                tauser.asegurar_stock(terminal)
+                messages.success(request, f'Terminal {terminal} creada. Cargue billetes antes de habilitarla al público.')
+            elif accion == 'estado':
+                terminal = get_object_or_404(TerminalAutoservicio, pk=request.POST.get('terminal_id'))
+                terminal.activa = not terminal.activa
+                terminal.save(update_fields=['activa'])
+                messages.success(request, f"Terminal {terminal.codigo} {'activada' if terminal.activa else 'desactivada'}.")
+            elif accion in ('recargar', 'retirar'):
+                terminal = get_object_or_404(TerminalAutoservicio, pk=request.POST.get('terminal_id'))
+                moneda = request.POST.get('moneda')
+                billetes = {clave[len('billete_'):]: request.POST.get(clave) for clave in request.POST if clave.startswith('billete_')}
+                total = tauser.recargar_stock(terminal, moneda, billetes, retirar=(accion == 'retirar'))
+                verbo = 'Retiro' if accion == 'retirar' else 'Recarga'
+                messages.success(request, f'{verbo} de {total:,.2f} {moneda} registrada en la terminal {terminal.codigo}.')
+        except tauser.TerminalError as exc:
+            messages.error(request, str(exc))
+        return redirect('caja:terminales_admin')
+
+    tauser.vencer_operaciones()
+    terminales = [
+        {'terminal': t, 'stock': tauser.resumen_stock(t)}
+        for t in TerminalAutoservicio.objects.all()
+    ]
+    return render(request, 'caja/terminales_admin.html', {
+        'terminales': terminales,
+        'operaciones': OperacionTerminal.objects.select_related('cliente', 'terminal')[:20],
+    })

@@ -1,0 +1,165 @@
+{% load l10n %}<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Terminal de Autoservicio {{ terminal.codigo }} - Global Exchange</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; } input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }</style>
+    {% include "authentication/_responsive.html" %}
+</head>
+<body class="bg-slate-900 min-h-screen text-white flex flex-col">
+    <header class="px-6 py-4 flex items-center justify-between border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-700 rounded-lg flex items-center justify-center font-extrabold text-lg">GX</div>
+            <div>
+                <p class="font-bold leading-tight">Global Exchange · Terminal de Autoservicio</p>
+                <p class="text-xs text-slate-400">{{ terminal.nombre }}{% if terminal.ubicacion %} · {{ terminal.ubicacion }}{% endif %}</p>
+            </div>
+        </div>
+        <span class="text-xs font-mono text-slate-400">{{ terminal.codigo }}</span>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
+        <div class="w-full max-w-2xl">
+        {% if error %}
+            <div class="mb-6 bg-red-500/15 border border-red-500/40 text-red-200 rounded-2xl px-5 py-4 text-sm">{{ error }}</div>
+        {% endif %}
+
+        {% if not terminal.activa %}
+            <div class="bg-slate-800 rounded-3xl p-10 text-center">
+                <p class="text-3xl font-extrabold mb-2">Fuera de servicio</p>
+                <p class="text-slate-400">Esta terminal no está operando. Diríjase a ventanilla.</p>
+            </div>
+
+        {% elif paso == 'inicio' %}
+            <form method="post" action="{% url 'caja:terminal_kiosco' terminal.codigo %}" class="bg-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl">
+                {% csrf_token %}
+                <p class="text-3xl font-extrabold mb-1">Bienvenido</p>
+                <p class="text-slate-400 mb-8">Ingrese el código que generó en la web y su número de documento.</p>
+                <label for="codigo" class="block text-sm font-semibold text-slate-300 mb-2">Código de operación</label>
+                <input id="codigo" name="codigo" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" required autofocus autocomplete="off"
+                       class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-3xl font-mono tracking-[0.4em] text-center mb-6 focus:outline-none focus:border-blue-500" placeholder="00000000">
+                <label for="documento" class="block text-sm font-semibold text-slate-300 mb-2">Cédula o RUC</label>
+                <input id="documento" name="documento" required autocomplete="off"
+                       class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-xl text-center mb-8 focus:outline-none focus:border-blue-500">
+                <button class="w-full bg-blue-600 hover:bg-blue-500 rounded-2xl py-4 text-lg font-bold transition">Continuar</button>
+            </form>
+
+        {% elif paso == 'operacion' %}
+            <div class="bg-slate-800 rounded-3xl p-8 shadow-2xl">
+                <p class="text-sm text-slate-400">Hola, {{ operacion.cliente.nombre_o_razon_social }}</p>
+                <p class="text-2xl font-extrabold mb-6">{% if operacion.tipo_operacion == 'COMPRA' %}Venta de {{ operacion.moneda_origen }}{% else %}Compra de {{ operacion.moneda_destino }}{% endif %}</p>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-slate-900 rounded-2xl p-5">
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Usted deposita</p>
+                        <p class="text-2xl font-bold mt-1">{{ operacion.monto_origen|floatformat:"2g" }} <span class="text-base text-slate-400">{{ operacion.moneda_origen }}</span></p>
+                    </div>
+                    <div class="bg-slate-900 rounded-2xl p-5">
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Usted recibe</p>
+                        <p class="text-2xl font-bold mt-1 text-emerald-400">{{ operacion.monto_destino|floatformat:"2g" }} <span class="text-base text-slate-400">{{ operacion.moneda_destino }}</span></p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mb-6">Tasa aplicada {{ operacion.tasa_aplicada|floatformat:"2g" }} Gs · Comisión incluida · Ajuste a billetes {{ operacion.redondeo_pyg|floatformat:"0g" }} Gs</p>
+
+                {% if nueva_cotizacion %}
+                <div class="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-5 mb-6">
+                    <p class="font-bold text-amber-200 mb-1">La cotización cambió desde que generó el código</p>
+                    <p class="text-sm text-amber-100 mb-4">Nueva operación: deposita <strong>{{ nueva_cotizacion.monto_origen|floatformat:"2g" }} {{ nueva_cotizacion.moneda_origen }}</strong> y recibe <strong>{{ nueva_cotizacion.monto_destino|floatformat:"2g" }} {{ nueva_cotizacion.moneda_destino }}</strong> (tasa {{ nueva_cotizacion.tasa|floatformat:"2g" }} Gs).</p>
+                    <div class="flex gap-3">
+                        <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="aceptar_cotizacion"><button class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-5 py-3 rounded-xl">Aceptar nueva cotización</button></form>
+                        <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="cancelar"><button class="bg-slate-700 hover:bg-slate-600 font-bold px-5 py-3 rounded-xl">Cancelar operación</button></form>
+                    </div>
+                </div>
+                {% else %}
+                <form method="post" id="form-deposito">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="depositar">
+                    <p class="font-bold mb-1">Inserte sus billetes de {{ operacion.moneda_origen }}</p>
+                    <p class="text-xs text-slate-400 mb-4">Indique cuántos billetes de cada valor introduce en el aceptador. Si deposita de más, la terminal le entrega el vuelto.</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                        {% for d in denominaciones_deposito %}
+                        <div class="bg-slate-900 rounded-2xl p-3 text-center">
+                            <p class="text-sm font-semibold mb-2">{{ d.valor_facial|floatformat:"0g" }} {{ d.divisa }}</p>
+                            <div class="flex items-center justify-center gap-2">
+                                <button type="button" class="w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 font-bold" data-menos>-</button>
+                                <input type="number" min="0" value="0" name="billete_{{ d.valor_facial|unlocalize }}" data-valor="{{ d.valor_facial|unlocalize }}"
+                                       class="w-14 bg-slate-800 border border-slate-700 rounded-lg py-1.5 text-center font-bold">
+                                <button type="button" class="w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 font-bold" data-mas>+</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-900 rounded-2xl px-5 py-4 mb-6">
+                        <span class="text-slate-400">Depositado</span>
+                        <span><span id="total-depositado" class="text-2xl font-bold">0</span> <span class="text-slate-400">/ {{ operacion.monto_origen|floatformat:"2g" }} {{ operacion.moneda_origen }}</span></span>
+                    </div>
+                    <button id="btn-confirmar" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 rounded-2xl py-4 text-lg font-bold transition" disabled>Confirmar y retirar dinero</button>
+                </form>
+                <form method="post" class="mt-3">{% csrf_token %}<input type="hidden" name="accion" value="cancelar">
+                    <button class="w-full text-slate-400 hover:text-white text-sm py-2">Cancelar operación</button></form>
+                <script>
+                    (function () {
+                        const requerido = {{ operacion.monto_origen|unlocalize }};
+                        const entradas = document.querySelectorAll('#form-deposito input[data-valor]');
+                        const total = document.getElementById('total-depositado');
+                        const boton = document.getElementById('btn-confirmar');
+                        const formato = new Intl.NumberFormat('es-PY', { maximumFractionDigits: 2 });
+                        function recalcular() {
+                            let suma = 0;
+                            entradas.forEach(e => { suma += Math.max(0, parseInt(e.value || '0', 10)) * parseFloat(e.dataset.valor); });
+                            total.textContent = formato.format(suma);
+                            boton.disabled = suma < requerido;
+                        }
+                        document.querySelectorAll('[data-mas],[data-menos]').forEach(b => b.addEventListener('click', () => {
+                            const entrada = b.parentElement.querySelector('input');
+                            entrada.value = Math.max(0, parseInt(entrada.value || '0', 10) + (b.hasAttribute('data-mas') ? 1 : -1));
+                            recalcular();
+                        }));
+                        entradas.forEach(e => e.addEventListener('input', recalcular));
+                        recalcular();
+                    })();
+                </script>
+                {% endif %}
+            </div>
+
+        {% elif paso == 'completada' %}
+            <div class="bg-white text-slate-900 rounded-3xl p-8 shadow-2xl">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl font-bold mb-3">&#10003;</div>
+                    <p class="text-2xl font-extrabold">Operación completada</p>
+                    <p class="text-slate-500 text-sm">Retire su dinero de la bandeja inferior</p>
+                </div>
+                <dl class="text-sm divide-y border-y mb-5">
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Operación</dt><dd class="font-mono font-semibold">{{ operacion.codigo }}</dd></div>
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Cliente</dt><dd>{{ operacion.cliente.nombre_o_razon_social }}</dd></div>
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Depositado</dt><dd>{{ operacion.efectivo_depositado|floatformat:"2g" }} {{ operacion.moneda_origen }}</dd></div>
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Recibe</dt><dd class="font-bold text-emerald-700">{{ operacion.monto_destino|floatformat:"2g" }} {{ operacion.moneda_destino }}</dd></div>
+                    {% if operacion.vuelto %}<div class="flex justify-between py-2"><dt class="text-slate-500">Vuelto</dt><dd>{{ operacion.vuelto|floatformat:"2g" }} {{ operacion.moneda_origen }}</dd></div>{% endif %}
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Tasa aplicada</dt><dd>{{ operacion.tasa_aplicada|floatformat:"2g" }} Gs</dd></div>
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Fecha</dt><dd>{{ operacion.completado_en|date:"d/m/Y H:i" }}</dd></div>
+                </dl>
+                <p class="text-sm font-semibold mb-2">Billetes entregados</p>
+                <ul class="text-sm text-slate-600 mb-5 space-y-1">
+                    {% for moneda, billetes in operacion.billetes_entregados.items %}
+                        {% for valor, cantidad in billetes.items %}<li>{{ cantidad }} × {{ valor }} {% if moneda|slice:":7" == "vuelto_" %}{{ moneda|slice:"7:" }} (vuelto){% else %}{{ moneda }}{% endif %}</li>{% endfor %}
+                    {% endfor %}
+                </ul>
+                {% if mensaje_factura %}<p class="text-xs text-slate-500 mb-5">{{ mensaje_factura }}</p>{% endif %}
+                <a href="{% url 'caja:terminal_kiosco' terminal.codigo %}" class="block text-center bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-4 font-bold">Finalizar</a>
+            </div>
+
+        {% elif paso == 'cancelada' %}
+            <div class="bg-slate-800 rounded-3xl p-10 text-center">
+                <p class="text-3xl font-extrabold mb-2">Operación cancelada</p>
+                <p class="text-slate-400 mb-8">La operación {{ operacion.codigo }} fue cancelada. Si depositó billetes, retírelos de la bandeja.</p>
+                <a href="{% url 'caja:terminal_kiosco' terminal.codigo %}" class="inline-block bg-blue-600 hover:bg-blue-500 rounded-2xl px-8 py-4 font-bold">Volver al inicio</a>
+            </div>
+        {% endif %}
+        </div>
+    </main>
+    <footer class="text-center text-xs text-slate-500 py-4">¿Necesita ayuda? Diríjase a ventanilla.</footer>
+</body>
+</html>

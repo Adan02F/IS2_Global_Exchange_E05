@@ -5,10 +5,12 @@ Generación y Exportación de Reportes de Transacciones y Ganancias (Épica PSE-
 
 Valida:
 * Filtros combinables: rango de fechas, tipo de operación, moneda, cajero y cliente.
-* Consolidación en PYG de volúmenes, comisiones, IVA y ganancia neta (comisión − IVA),
-  incluida la conversión de comisiones que no se guardaron en Guaraníes.
+* Consolidación en PYG de volúmenes, comisiones, IVA, margen cambiario, beneficio cedido y
+  ganancia neta (comisión − IVA + margen), incluida la conversión de comisiones que no se
+  guardaron en Guaraníes.
 * Exclusión de operaciones no confirmadas (FAILED, PENDING, ANULADA).
-* Generación y estructura del CSV (Excel/CSV) y de la vista de impresión para PDF (window.print()).
+* Generación y estructura del CSV (Excel/CSV), del archivo PDF (ReportLab) y de la vista de
+  impresión del navegador (window.print()).
 * Control de acceso: Administrador y Analista sí; Cliente no.
 """
 import csv
@@ -39,11 +41,17 @@ class BaseReportePSE41(TestCase):
     Datos comunes: dos clientes, un cajero con turno, y operaciones online y de ventanilla
     en distintas fechas, tipos y monedas.
 
-    Operaciones confirmadas (SUCCESS):
-        c1  Compra online   PYG→USD  01/10  cliente A  volumen 730.000   comisión 0,50 USD → 3.650 PYG, IVA 365
+    Pizarra (sin historial, se usa la actual): USD 7.300 / 7.400 (media 7.350), EUR 8.000 / 8.100 (media 8.050).
+
+    Operaciones confirmadas (SUCCESS), con la comisión en la moneda en que la guardan los servicios:
+        c1  Compra online   PYG→USD  01/10  cliente A  volumen 740.000    comisión 3.700 PYG, IVA 370
+            margen: vende 100 USD a 7.400 → 100 × (7.400 − 7.350) = 5.000   → ganancia 8.330
         c2  Compra ventan.  USD→PYG  05/10  cliente B  cajero  volumen 1.460.000  comisión 1 USD → 7.300, IVA 0
-        v1  Venta online    USD→PYG  10/10  cliente A  volumen 2.000.000  comisión 10.000, IVA 1.000
-        v2  Venta ventan.   EUR→PYG  15/10  cliente B  cajero  volumen 800.000  comisión 4.000 PYG*, IVA 0
+            margen: compra 200 USD a 7.300 → 200 × (7.350 − 7.300) = 10.000 → ganancia 17.300
+        v1  Venta online    USD→PYG  10/10  cliente A  volumen 1.460.000  comisión 7.300 PYG, IVA 730
+            margen: compra 200 USD a 7.300 → 10.000                         → ganancia 16.570
+        v2  Venta ventan.   PYG→EUR  15/10  cliente B  cajero  volumen 800.000  comisión 4.000 PYG, IVA 0
+            margen: vende 98,77 EUR a 8.100 → 98,77 × 50 = 4.938,50         → ganancia 8.938,50
     No confirmadas (deben excluirse): una compra FAILED, una venta PENDING y una venta ANULADA.
     """
 
@@ -71,14 +79,14 @@ class BaseReportePSE41(TestCase):
         self.turno = TurnoCaja.objects.create(caja=caja, cajero=self.cajero)
 
         self.c1 = self._compra(_fecha(2026, 10, 1), cliente=self.cliente_a, user=self.usuario_cliente,
-                               desde='PYG', hacia='USD', monto='730000', convertido='100', tasa='7300',
-                               comision='0.50', iva='0.05', total='730000')
+                               desde='PYG', hacia='USD', monto='740000', convertido='100', tasa='7400',
+                               comision='3700', iva='370', total='740000')
         self.c2 = self._compra(_fecha(2026, 10, 5), cliente=self.cliente_b, user=self.cajero, turno=self.turno,
                                desde='USD', hacia='PYG', monto='200', convertido='1452700', tasa='7300',
                                comision='1.00', iva='0', total='1460000', ventanilla=True)
         self.v1 = self._venta(_fecha(2026, 10, 10), cliente=self.cliente_a, user=self.usuario_cliente,
-                              desde='USD', hacia='PYG', monto='270.27', convertido='2000000', tasa='7400',
-                              comision='10000', iva='1000', total='2000000')
+                              desde='USD', hacia='PYG', monto='200', convertido='1460000', tasa='7300',
+                              comision='7300', iva='730', total='1460000')
         self.v2 = self._venta(_fecha(2026, 10, 15), cliente=self.cliente_b, user=self.cajero, turno=self.turno,
                               desde='PYG', hacia='EUR', monto='800000', convertido='98.77', tasa='8100',
                               comision='4000', iva='0', total='800000', ventanilla=True)
@@ -116,9 +124,10 @@ class BaseReportePSE41(TestCase):
 class ConsolidacionPYGTests(BaseReportePSE41):
     """Pruebas unitarias del cálculo consolidado en PYG."""
 
-    def test_factor_comision_online_con_destino_extranjero(self):
-        """Online con destino USD: la comisión (en USD) se convierte con total_pyg / converted_amount."""
-        self.assertEqual(reportes.factor_comision_a_pyg(self.c1), Decimal('7300'))
+    def test_factor_comision_compra_online_en_moneda_de_origen(self):
+        """Compra online PYG→USD: el servicio guarda la comisión en la moneda de origen (PYG)."""
+        self.assertEqual(reportes.moneda_comision(self.c1), 'PYG')
+        self.assertEqual(reportes.factor_comision_a_pyg(self.c1), Decimal('1'))
 
     def test_factor_comision_ventanilla_con_origen_extranjero(self):
         """Ventanilla con origen USD: la comisión (en USD) se convierte con la tasa aplicada."""
@@ -129,12 +138,14 @@ class ConsolidacionPYGTests(BaseReportePSE41):
         self.assertEqual(reportes.factor_comision_a_pyg(self.v1), Decimal('1'))
         self.assertEqual(reportes.factor_comision_a_pyg(self.v2), Decimal('1'))
 
-    def test_fila_convierte_comision_iva_y_ganancia(self):
-        """La fila de la compra c1 queda con comisión 3.650, IVA 365 y ganancia 3.285 PYG."""
+    def test_fila_convierte_comision_iva_margen_y_ganancia(self):
+        """c1: comisión 3.700, IVA 370, margen 5.000 → ganancia 8.330 PYG."""
         fila = reportes._a_fila(self.c1, reportes.TIPO_COMPRA)
-        self.assertEqual(fila.comision_pyg, Decimal('3650.00'))
-        self.assertEqual(fila.iva_pyg, Decimal('365.00'))
-        self.assertEqual(fila.ganancia_neta_pyg, Decimal('3285.00'))
+        self.assertEqual(fila.comision_pyg, Decimal('3700.00'))
+        self.assertEqual(fila.iva_pyg, Decimal('370.00'))
+        self.assertEqual(fila.margen_cambiario_pyg, Decimal('5000.00'))
+        self.assertEqual(fila.beneficio_pyg, Decimal('0.00'))
+        self.assertEqual(fila.ganancia_neta_pyg, Decimal('8330.00'))
         self.assertEqual(fila.canal, 'Online')
 
     def test_operador_es_cajero_del_turno(self):
@@ -148,12 +159,13 @@ class ConsolidacionPYGTests(BaseReportePSE41):
         self.assertEqual(totales.cantidad, 4)
         self.assertEqual(totales.cantidad_compras, 2)
         self.assertEqual(totales.cantidad_ventas, 2)
-        self.assertEqual(totales.volumen_compras_pyg, Decimal('2190000.00'))
-        self.assertEqual(totales.volumen_ventas_pyg, Decimal('2800000.00'))
-        self.assertEqual(totales.volumen_total_pyg, Decimal('4990000.00'))
-        self.assertEqual(totales.comision_pyg, Decimal('24950.00'))  # 3.650 + 7.300 + 10.000 + 4.000
-        self.assertEqual(totales.iva_pyg, Decimal('1365.00'))        # 365 + 0 + 1.000 + 0
-        self.assertEqual(totales.ganancia_neta_pyg, Decimal('23585.00'))
+        self.assertEqual(totales.volumen_compras_pyg, Decimal('2200000.00'))
+        self.assertEqual(totales.volumen_ventas_pyg, Decimal('2260000.00'))
+        self.assertEqual(totales.volumen_total_pyg, Decimal('4460000.00'))
+        self.assertEqual(totales.comision_pyg, Decimal('22300.00'))          # 3.700 + 7.300 + 7.300 + 4.000
+        self.assertEqual(totales.iva_pyg, Decimal('1100.00'))                # 370 + 0 + 730 + 0
+        self.assertEqual(totales.margen_cambiario_pyg, Decimal('29938.50'))  # 5.000 + 10.000 + 10.000 + 4.938,50
+        self.assertEqual(totales.ganancia_neta_pyg, Decimal('51138.50'))
 
     def test_filas_ordenadas_de_la_mas_reciente(self):
         """Las filas se listan de la más reciente a la más antigua."""
@@ -208,7 +220,7 @@ class FiltrosReporteTests(BaseReportePSE41):
             tipo=reportes.TIPO_VENTA, moneda='USD', cliente_id=self.cliente_a.pk,
         ))
         self.assertEqual(len(filas), 1)
-        self.assertEqual(totales.ganancia_neta_pyg, Decimal('9000.00'))
+        self.assertEqual(totales.ganancia_neta_pyg, Decimal('16570.00'))
 
     def test_filtros_sin_resultados(self):
         """Una combinación sin coincidencias devuelve una lista vacía."""
@@ -242,21 +254,41 @@ class ExportacionArchivosTests(BaseReportePSE41):
         self.assertEqual(lineas[3], reportes.COLUMNAS_EXPORTACION)
         self.assertEqual(len(lineas[4:8]), 4)
         resumen = {l[0]: l[1] for l in lineas if len(l) == 2}
-        self.assertEqual(resumen['Volumen total operado (PYG)'], '4990000.00')
-        self.assertEqual(resumen['Ganancia neta (PYG)'], '23585.00')
+        self.assertEqual(resumen['Volumen total operado (PYG)'], '4460000.00')
+        self.assertEqual(resumen['Margen cambiario (PYG)'], '29938.50')
+        self.assertEqual(resumen['Ganancia neta (PYG)'], '51138.50')
 
     def test_csv_importes_por_operacion(self):
-        """Cada línea del CSV trae el volumen, la comisión, el IVA y la ganancia en PYG."""
+        """Cada línea del CSV trae volumen, comisión, IVA, margen, beneficio y ganancia en PYG."""
         contenido = reportes.exportar_csv(self.filas, self.totales)
         lineas = list(csv.reader(io.StringIO(contenido.decode('utf-8-sig')), delimiter=';'))
         compra_online = [l for l in lineas[4:8] if l[3] == 'Cliente Alfa' and l[1] == 'Compra'][0]
-        self.assertEqual(compra_online[9:], ['730000.00', '3650.00', '365.00', '3285.00'])
+        self.assertEqual(compra_online[9:], ['740000.00', '3700.00', '370.00', '5000.00', '0.00', '8330.00'])
 
     def test_csv_sin_operaciones(self):
         """Sin operaciones el CSV igual trae las columnas y el resumen en cero."""
         contenido = reportes.exportar_csv([], reportes.calcular_totales([])).decode('utf-8-sig')
         self.assertIn(';'.join(reportes.COLUMNAS_EXPORTACION), contenido)
         self.assertIn('Ganancia neta (PYG);0.00', contenido)
+
+
+    def test_pdf_es_un_documento_valido(self):
+        """exportar_pdf devuelve un PDF (cabecera %PDF y cierre %%EOF) con metadatos del reporte."""
+        contenido = reportes.exportar_pdf(self.filas, self.totales, 'Moneda: USD')
+        self.assertTrue(contenido.startswith(b'%PDF'))
+        self.assertIn(b'%%EOF', contenido[-1024:])
+        self.assertIn(b'Reporte de Transacciones y Ganancias', contenido)
+
+    def test_pdf_sin_operaciones(self):
+        """Sin operaciones el PDF igual se genera, con el aviso y los totales en cero."""
+        contenido = reportes.exportar_pdf([], reportes.calcular_totales([]))
+        self.assertTrue(contenido.startswith(b'%PDF'))
+
+    def test_formato_de_importes(self):
+        """Los importes del PDF usan punto de miles y coma decimal."""
+        self.assertEqual(reportes.formatear_importe(Decimal('1234567.891')), '1.234.567,89')
+        self.assertEqual(reportes.formatear_importe(Decimal('7350'), 4), '7.350,0000')
+        self.assertEqual(reportes.formatear_importe(None), '0,00')
 
 
 class VistaReporteFinancieroTests(BaseReportePSE41):
@@ -269,7 +301,7 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         self.assertEqual(respuesta.status_code, 200)
         self.assertTemplateUsed(respuesta, 'monitoreo_corporativo/reporte_financiero.html')
         self.assertContains(respuesta, '<tfoot')
-        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('23585.00'))
+        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('51138.50'))
         self.assertContains(respuesta, 'Cliente Alfa')
 
     def test_analista_tiene_acceso(self):
@@ -295,7 +327,7 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         self.http.force_login(self.admin)
         respuesta = self.http.get(self.url, {'tipo': 'COMPRA', 'cajero': self.cajero.pk})
         self.assertEqual(respuesta.context['totales'].cantidad, 1)
-        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('7300.00'))
+        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('17300.00'))
 
     def test_rango_de_fechas_invalido(self):
         """Si 'Desde' es posterior a 'Hasta' se muestra el error y no se listan operaciones."""
@@ -318,9 +350,9 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         self.assertNotIn('Cliente Alfa', texto)
 
     def test_vista_impresion_pdf(self):
-        """formato=pdf muestra la vista de impresión con window.print(), detalle y totales."""
+        """formato=imprimir muestra la vista de impresión con window.print(), detalle y totales."""
         self.http.force_login(self.analista)
-        respuesta = self.http.get(self.url, {'formato': 'pdf', 'tipo': 'VENTA'})
+        respuesta = self.http.get(self.url, {'formato': 'imprimir', 'tipo': 'VENTA'})
         self.assertEqual(respuesta.status_code, 200)
         self.assertTemplateUsed(respuesta, 'monitoreo_corporativo/reporte_financiero_imprimir.html')
         self.assertContains(respuesta, 'window.print()')
@@ -329,12 +361,12 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         self.assertContains(respuesta, '<tfoot')
         self.assertContains(respuesta, 'Resumen de Totales')
         self.assertEqual(respuesta.context['totales'].cantidad, 2)
-        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('13000.00'))
+        self.assertEqual(respuesta.context['totales'].ganancia_neta_pyg, Decimal('25508.50'))
 
     def test_vista_impresion_respeta_filtros(self):
         """La vista de impresión lista solo las operaciones filtradas."""
         self.http.force_login(self.admin)
-        respuesta = self.http.get(self.url, {'formato': 'pdf', 'cliente': self.cliente_b.pk})
+        respuesta = self.http.get(self.url, {'formato': 'imprimir', 'cliente': self.cliente_b.pk})
         self.assertContains(respuesta, 'Cliente Beta')
         self.assertNotContains(respuesta, 'Cliente Alfa')
 
@@ -345,10 +377,11 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         self.assertTemplateUsed(respuesta, 'monitoreo_corporativo/reporte_financiero.html')
 
     def test_cliente_no_accede_a_exportaciones(self):
-        """Sin permiso tampoco se puede descargar el CSV ni abrir la vista de impresión."""
+        """Sin permiso tampoco se puede descargar el CSV o el PDF ni abrir la vista de impresión."""
         self.http.force_login(self.usuario_cliente)
         self.assertEqual(self.http.get(self.url, {'formato': 'csv'}).status_code, 302)
         self.assertEqual(self.http.get(self.url, {'formato': 'pdf'}).status_code, 302)
+        self.assertEqual(self.http.get(self.url, {'formato': 'imprimir'}).status_code, 302)
 
     def test_enlaces_de_descarga_conservan_filtros(self):
         """Los botones de descarga conservan los filtros de la consulta actual."""
@@ -356,6 +389,24 @@ class VistaReporteFinancieroTests(BaseReportePSE41):
         respuesta = self.http.get(self.url, {'moneda': 'USD'})
         self.assertContains(respuesta, 'moneda=USD&amp;formato=pdf')
         self.assertContains(respuesta, 'moneda=USD&amp;formato=csv')
+        self.assertContains(respuesta, 'moneda=USD&amp;formato=imprimir')
+
+    def test_descarga_pdf_respeta_filtros(self):
+        """formato=pdf descarga un archivo PDF real con los mismos filtros de la vista."""
+        self.http.force_login(self.analista)
+        respuesta = self.http.get(self.url, {'formato': 'pdf', 'tipo': 'VENTA'})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertIn('attachment; filename="reporte_financiero_', respuesta['Content-Disposition'])
+        self.assertTrue(respuesta['Content-Disposition'].endswith('.pdf"'))
+        self.assertTrue(respuesta.content.startswith(b'%PDF'))
+
+    def test_descarga_pdf_con_filtros_invalidos_muestra_panel(self):
+        """Con un rango de fechas inválido no se genera el PDF y se muestra el panel con el error."""
+        self.http.force_login(self.admin)
+        respuesta = self.http.get(self.url, {'formato': 'pdf', 'fecha_desde': '2026-10-20', 'fecha_hasta': '2026-10-01'})
+        self.assertTemplateUsed(respuesta, 'monitoreo_corporativo/reporte_financiero.html')
+        self.assertContains(respuesta, 'no puede ser posterior')
 
     def test_tarjeta_en_dashboard_admin(self):
         """El dashboard del Administrador muestra el acceso a Reportes Financieros."""

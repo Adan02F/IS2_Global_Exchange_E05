@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -273,8 +273,13 @@ class CancelacionTests(BaseFacturacionTest):
             facturacion.cancelar_factura(self.compra(), "  ", self.admin)
 
 
+@override_settings(FACTURASEGURA_NC_NUMERO_INICIAL=49, FACTURASEGURA_NC_NUMERO_FINAL=60)
 class RangoNotaCreditoTests(TestCase):
-    """Numeracion de notas de credito dentro del rango asignado por Factura Segura."""
+    """
+    Numeracion de notas de credito dentro del rango asignado por Factura Segura.
+
+    El rango se fija con ``override_settings`` para que la prueba no dependa del ``.env`` local.
+    """
 
     def test_rango_por_defecto_es_el_asignado(self):
         """El rango de notas de credito es 49-60 (establecimiento 001, punto 003)."""

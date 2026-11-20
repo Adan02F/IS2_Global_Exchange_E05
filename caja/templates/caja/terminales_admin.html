@@ -1,0 +1,120 @@
+{% load l10n %}<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Global Exchange - Terminales de Autoservicio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+    {% include "authentication/_responsive.html" %}
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900">
+    <header class="bg-slate-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 bg-blue-800 rounded-lg flex items-center justify-center font-bold text-lg shadow">GX</div>
+                <span class="font-bold text-lg tracking-wide">Global Exchange - Panel de Administrador</span>
+            </div>
+            <a href="{% url 'dashboard_redirect' %}" class="bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition">&larr; Volver al Panel</a>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% include "authentication/_notificaciones.html" %}
+
+        <h1 class="text-3xl font-extrabold text-slate-900">Terminales de Autoservicio</h1>
+        <p class="text-slate-600 mt-1 mb-8">Alta de terminales, recarga y retiro de billetes, y seguimiento de las operaciones en efectivo sin cajero.</p>
+
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <h2 class="text-lg font-bold mb-4">Nueva terminal</h2>
+            <form method="post" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="crear">
+                <div><label class="block text-sm font-medium text-slate-700 mb-1" for="codigo">Código</label><input id="codigo" name="codigo" required maxlength="20" placeholder="T02" class="w-full border border-slate-300 rounded-lg px-3 py-2"></div>
+                <div><label class="block text-sm font-medium text-slate-700 mb-1" for="nombre">Nombre</label><input id="nombre" name="nombre" required placeholder="Terminal Shopping" class="w-full border border-slate-300 rounded-lg px-3 py-2"></div>
+                <div><label class="block text-sm font-medium text-slate-700 mb-1" for="ubicacion">Ubicación</label><input id="ubicacion" name="ubicacion" placeholder="Sucursal / dirección" class="w-full border border-slate-300 rounded-lg px-3 py-2"></div>
+                <button class="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-4 py-2.5 rounded-xl">Crear terminal</button>
+            </form>
+        </section>
+
+        {% for item in terminales %}
+        {% with t=item.terminal %}
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+                <div>
+                    <h2 class="text-lg font-bold">{{ t.nombre }} <span class="font-mono text-sm text-slate-500">({{ t.codigo }})</span></h2>
+                    <p class="text-sm text-slate-500">{{ t.ubicacion|default:"Sin ubicación" }}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if t.activa %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-600{% endif %}">{% if t.activa %}En servicio{% else %}Fuera de servicio{% endif %}</span>
+                    <a href="{% url 'caja:terminal_kiosco' t.codigo %}" target="_blank" class="text-blue-700 hover:underline text-sm font-semibold">Abrir pantalla de la terminal &rarr;</a>
+                    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="estado"><input type="hidden" name="terminal_id" value="{{ t.pk }}">
+                        <button class="text-sm font-semibold {% if t.activa %}text-red-600{% else %}text-emerald-700{% endif %} hover:underline">{% if t.activa %}Desactivar{% else %}Activar{% endif %}</button></form>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {% for grupo in item.stock %}
+                <div class="border border-slate-200 rounded-xl p-4">
+                    <div class="flex justify-between items-baseline mb-2">
+                        <h3 class="font-bold">{{ grupo.moneda }}</h3>
+                        <span class="text-sm text-slate-600">Total: <strong>{{ grupo.total|floatformat:"2g" }}</strong></span>
+                    </div>
+                    <table class="w-full text-sm mb-3">
+                        {% for fila in grupo.filas %}
+                        <tr class="border-t border-slate-100"><td class="py-1">{{ fila.denominacion.valor_facial|floatformat:"0g" }}</td><td class="py-1 text-right {% if fila.cantidad < 5 %}text-red-600 font-semibold{% endif %}">{{ fila.cantidad }} billetes</td></tr>
+                        {% endfor %}
+                    </table>
+                    <details>
+                        <summary class="cursor-pointer text-sm text-blue-700 font-semibold">Recargar o retirar billetes</summary>
+                        <form method="post" class="mt-3 space-y-2">
+                            {% csrf_token %}
+                            <input type="hidden" name="terminal_id" value="{{ t.pk }}">
+                            <input type="hidden" name="moneda" value="{{ grupo.moneda }}">
+                            {% for fila in grupo.filas %}
+                            <label class="flex items-center justify-between text-sm">{{ fila.denominacion.valor_facial|floatformat:"0g" }}
+                                <input type="number" min="0" value="0" name="billete_{{ fila.denominacion.valor_facial|unlocalize }}" class="w-24 border border-slate-300 rounded px-2 py-1 text-right"></label>
+                            {% endfor %}
+                            <div class="flex gap-2 pt-1">
+                                <button name="accion" value="recargar" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2 rounded-lg">Recargar</button>
+                                <button name="accion" value="retirar" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold py-2 rounded-lg">Retirar</button>
+                            </div>
+                        </form>
+                    </details>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endwith %}
+        {% empty %}
+        <p class="text-slate-500 mb-6">No hay terminales registradas.</p>
+        {% endfor %}
+
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 class="text-lg font-bold mb-4">Últimas operaciones</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-4">Código</th><th class="py-2 pr-4">Cliente</th><th class="py-2 pr-4">Tipo</th><th class="py-2 pr-4">Deposita</th><th class="py-2 pr-4">Recibe</th><th class="py-2 pr-4">Terminal</th><th class="py-2 pr-4">Estado</th><th class="py-2">Fecha</th></tr></thead>
+                    <tbody class="divide-y">
+                        {% for op in operaciones %}
+                        <tr>
+                            <td class="py-2 pr-4 font-mono">{{ op.codigo }}</td>
+                            <td class="py-2 pr-4">{{ op.cliente.nombre_o_razon_social }}</td>
+                            <td class="py-2 pr-4">{{ op.get_tipo_operacion_display }}</td>
+                            <td class="py-2 pr-4">{{ op.monto_origen|floatformat:"2g" }} {{ op.moneda_origen }}</td>
+                            <td class="py-2 pr-4">{{ op.monto_destino|floatformat:"2g" }} {{ op.moneda_destino }}</td>
+                            <td class="py-2 pr-4">{{ op.terminal.codigo|default:"-" }}</td>
+                            <td class="py-2 pr-4">{{ op.get_estado_display }}</td>
+                            <td class="py-2">{{ op.creado_en|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="py-4 text-slate-500">Sin operaciones.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

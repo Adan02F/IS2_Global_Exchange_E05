@@ -11,6 +11,7 @@
         body { font-family: 'Inter', sans-serif; }
         .num { font-variant-numeric: tabular-nums; }
     </style>
+    {% include "authentication/_responsive.html" %}
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 flex flex-col">
     <!-- Navbar -->
@@ -66,11 +67,13 @@
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Ganancia neta del mes</p>
                 <p class="text-2xl font-bold text-green-600 num mt-1">₲ <span id="kpi-mes-ganancia">{{ datos.mes.ganancia_neta_pyg|floatformat:"2g" }}</span></p>
                 <p class="text-xs text-slate-500 mt-1"><span id="kpi-mes-operaciones">{{ datos.mes.operaciones }}</span> operación(es) en el mes</p>
+                <p class="text-xs text-slate-500 mt-1">Margen cambiario ₲ <span id="kpi-mes-margen" class="num">{{ datos.mes.margen_cambiario_pyg|floatformat:"2g" }}</span></p>
             </div>
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Volumen del mes</p>
                 <p class="text-2xl font-bold text-blue-800 num mt-1">₲ <span id="kpi-mes-volumen">{{ datos.mes.volumen_pyg|floatformat:"2g" }}</span></p>
                 <p class="text-xs text-slate-500 mt-1">Comisiones ₲ <span id="kpi-mes-comision" class="num">{{ datos.mes.comision_pyg|floatformat:"2g" }}</span></p>
+                <p class="text-xs text-amber-700 mt-1">Beneficios cedidos ₲ <span id="kpi-mes-beneficio" class="num">{{ datos.mes.beneficio_pyg|floatformat:"2g" }}</span></p>
             </div>
         </section>
 
@@ -80,7 +83,7 @@
                 <div class="px-6 py-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h2 class="font-semibold text-base">Ganancia Neta Mensual por Divisa</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Consolidación contable en Guaraníes (PYG) · comisión − IVA</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Consolidación contable en Guaraníes (PYG) · comisión − IVA + margen cambiario (neto de beneficios)</p>
                     </div>
                     <form method="get" class="flex items-center gap-2">
                         <label for="meses" class="text-xs text-slate-300">Período</label>
@@ -208,6 +211,8 @@
                 texto('kpi-mes-ganancia', pyg(datos.mes.ganancia_neta_pyg));
                 texto('kpi-mes-volumen', pyg(datos.mes.volumen_pyg));
                 texto('kpi-mes-comision', pyg(datos.mes.comision_pyg));
+                texto('kpi-mes-margen', pyg(datos.mes.margen_cambiario_pyg));
+                texto('kpi-mes-beneficio', pyg(datos.mes.beneficio_pyg));
                 texto('kpi-mes-operaciones', datos.mes.operaciones);
                 texto('ultima-actualizacion', new Date(datos.generado).toLocaleTimeString('es-PY'));
                 dibujarCotizaciones(datos.cotizaciones);
