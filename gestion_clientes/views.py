@@ -1486,7 +1486,7 @@ def admin_user_list_view(request):
         return denegar_acceso(request, 'can_manage_users')
     
     interface_ctx = get_user_interface_context(request, profile)
-    users = User.objects.all().select_related('profile__role').prefetch_related('profile__roles').order_by('id')
+    users = User.objects.all().select_related('profile__role').order_by('id')
     ctx = {'users': users}
     ctx.update(interface_ctx)
     return render(request, 'gestion_clientes/admin_user_list.html', ctx)

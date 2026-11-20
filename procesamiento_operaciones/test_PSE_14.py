@@ -304,5 +304,9 @@ class CurrencySalePSE14Tests(TestCase):
         self.assertEqual(tx.to_currency, 'EUR')
         self.assertGreater(tx.converted_amount, Decimal('0'))
         # total_pyg queda en Guaraníes (valor de los USD), no converted_amount × tasa cruzada.
-        self.assertAlmostEqual(tx.total_pyg, Decimal(tx.monto_moneda_local), delta=Decimal('0.01'))
+        # La comisión + IVA (0,55 %) va dentro de la tasa, así que el neto en PYG es
+        # monto_moneda_local × 0,9945 (± redondeo a céntimos de la moneda destino).
+        neto_esperado = Decimal(tx.monto_moneda_local) * Decimal('0.9945')
+        self.assertAlmostEqual(tx.total_pyg, neto_esperado, delta=Decimal('100'))
+        self.assertLess(tx.total_pyg, Decimal(tx.monto_moneda_local))
         self.assertGreater(tx.total_pyg, Decimal('100000'))

@@ -300,10 +300,7 @@ def gestion_cajas_admin_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     interface_ctx = get_user_interface_context(request, profile)
 
-    cajeros_list = User.objects.filter(
-        Q(profile__role__name__icontains='cajero') |
-        Q(profile__roles__name__icontains='cajero')
-    ).distinct()
+    cajeros_list = User.objects.filter(profile__role__name__icontains='cajero').distinct()
     if not cajeros_list.exists():
         cajeros_list = User.objects.filter(is_superuser=False)
 
