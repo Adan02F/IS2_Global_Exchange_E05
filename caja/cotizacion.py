@@ -122,10 +122,16 @@ def cotizar_efectivo(tipo_operacion, moneda_origen, moneda_destino, monto, benef
     Returns:
         CotizacionEfectivo: Montos, tasas y comisión de la operación.
     """
-    tasa_origen = tasa_con_beneficio(moneda_origen, tipo_operacion, benefit_percentage)
-    tasa_destino = tasa_con_beneficio(moneda_destino, tipo_operacion, benefit_percentage)
+    # La casa compra la moneda que entrega el cliente (tasa de compra) y vende la que recibe (tasa de venta).
+    # Con PYG en una de las patas coincide con el tipo de operación; en una cruzada (ej. USD→EUR) evita
+    # entregar la divisa de destino a tasa de compra, que dejaba a la casa por debajo de la media.
+    tasa_origen = tasa_con_beneficio(moneda_origen, 'COMPRA', benefit_percentage)
+    tasa_destino = tasa_con_beneficio(moneda_destino, 'VENTA', benefit_percentage)
     tasa = tasa_origen if moneda_origen != 'PYG' else tasa_destino
-    tasa_std = tasa_estandar(moneda_origen if moneda_origen != 'PYG' else moneda_destino, tipo_operacion)
+    if moneda_origen != 'PYG':
+        tasa_std = tasa_estandar(moneda_origen, 'COMPRA')
+    else:
+        tasa_std = tasa_estandar(moneda_destino, 'VENTA')
 
     if tipo_operacion == 'COMPRA':
         monto_origen = monto

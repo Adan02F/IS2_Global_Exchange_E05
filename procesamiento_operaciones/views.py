@@ -14,7 +14,7 @@ import json
 import sys
 from django.conf import settings
 from authentication.models import UserProfile, Cliente, UsuarioClienteRelacion, ClientAccreditationMethod
-from authentication.permisos import requiere_permiso, tiene_permiso, denegar_acceso
+from authentication.permisos import requiere_permiso, tiene_permiso, denegar_acceso, puede_operar_como_cliente
 from tasas_cambio.models import ExchangeRate, ClientBenefitRule, PaymentMethod
 from tasas_cambio.views import (
     ensure_default_payment_methods, ensure_default_benefit_rules,
@@ -693,7 +693,8 @@ def _resumen_desde_simulador(request, active_client, from_currency, to_currency,
             user=request.user,
             request=request,
             client=active_client,
-            category_override=active_client.categoria if active_client else None
+            category_override=active_client.categoria if active_client else None,
+            incluir_comision=True,
         )
     except (ValidationError, ArithmeticError):
         return None
@@ -935,7 +936,8 @@ class CurrencySaleService:
             user=user,
             request=request,
             client=cliente,
-            category_override=cliente.categoria if cliente else None
+            category_override=cliente.categoria if cliente else None,
+            incluir_comision=True,
         )
 
         eval_amount_pyg = amount_dec
@@ -961,23 +963,32 @@ class CurrencySaleService:
 
         # Calcular comisión (0.5%) e impuestos (IVA 10% sobre comisión) y neto a acreditar en cuenta vinculada
         gross_pyg = sim_result['converted_amount']
+        # Monto convertido sin el cargo de comisión (la comisión ya está dentro de la tasa aplicada).
+        convertido_sin_comision = sim_result.get('converted_amount_sin_comision', gross_pyg)
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
             tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
+            if to_currency != 'PYG' and amount_dec:
+                # Cruzada: applied_rate es la tasa cruzada (ej. USD→EUR ≈ 0,85); la tasa local es la de la
+                # moneda de origen en PYG, para que total_pyg y la caja del negocio queden en Guaraníes.
+                tipo_cambio_local_origen = (eval_amount_pyg / amount_dec).quantize(Decimal('0.0001'))
 
         tipo_cambio_local_destino = Decimal('1.0000')
         if to_currency != 'PYG':
             tipo_cambio_local_destino = sim_result.get('applied_rate', Decimal('1.0000'))
+            if from_currency != 'PYG' and convertido_sin_comision:
+                # Cruzada: tasa en PYG de la moneda de destino (venta con beneficio), sin la tasa cruzada.
+                tipo_cambio_local_destino = eval_amount_pyg / convertido_sin_comision
 
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
 
         if to_currency == 'PYG':
-            commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
+            commission_amount = (convertido_sin_comision * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
             total_pyg = gross_pyg
             total_origen = amount_dec
         else:
-            commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
+            commission_amount = (convertido_sin_comision * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
             total_pyg = (gross_pyg * tipo_cambio_local_destino).quantize(Decimal('0.01'))
             total_origen = amount_dec
@@ -1001,7 +1012,10 @@ class CurrencySaleService:
 
         # Acreditar en la cuenta destino
         if destination_method:
-            required_credit = _convert_amount(total_pyg, 'PYG', destination_method.moneda)
+            if destination_method.moneda == to_currency:
+                required_credit = gross_pyg
+            else:
+                required_credit = _convert_amount(total_pyg, 'PYG', destination_method.moneda)
             destination_method.balance += required_credit
             destination_method.save()
             movs.append(_mov(MovimientoSaldoOperacion.CUENTA_CLIENTE, required_credit, destination_method.moneda, cuenta_cliente=destination_method))
@@ -1034,6 +1048,7 @@ class CurrencySaleService:
 
         # Registrar transacción de venta
         transaction = CurrencySaleTransaction.objects.create(
+            comision_en_tasa=sim_result.get('comision_incluida', False),
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
             turno=_get_active_turn(user),
@@ -1113,7 +1128,8 @@ class CurrencySaleService:
             user=user,
             request=request,
             client=cliente,
-            category_override=cliente.categoria if cliente else None
+            category_override=cliente.categoria if cliente else None,
+            incluir_comision=True,
         )
 
         eval_amount_pyg = amount_dec
@@ -1137,23 +1153,32 @@ class CurrencySaleService:
             raise ValidationError(f"El monto de la transacción (₲ {eval_amount_pyg:,.2f}) excede el límite máximo permitido de ₲ 1.000.000.000 PYG.")
 
         gross_pyg = sim_result['converted_amount']
+        # Monto convertido sin el cargo de comisión (la comisión ya está dentro de la tasa aplicada).
+        convertido_sin_comision = sim_result.get('converted_amount_sin_comision', gross_pyg)
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
             tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
+            if to_currency != 'PYG' and amount_dec:
+                # Cruzada: applied_rate es la tasa cruzada (ej. USD→EUR ≈ 0,85); la tasa local es la de la
+                # moneda de origen en PYG, para que total_pyg y la caja del negocio queden en Guaraníes.
+                tipo_cambio_local_origen = (eval_amount_pyg / amount_dec).quantize(Decimal('0.0001'))
 
         tipo_cambio_local_destino = Decimal('1.0000')
         if to_currency != 'PYG':
             tipo_cambio_local_destino = sim_result.get('applied_rate', Decimal('1.0000'))
+            if from_currency != 'PYG' and convertido_sin_comision:
+                # Cruzada: tasa en PYG de la moneda de destino (venta con beneficio), sin la tasa cruzada.
+                tipo_cambio_local_destino = eval_amount_pyg / convertido_sin_comision
 
         tipo_cambio_cruzado = sim_result.get('applied_rate') if (from_currency != 'PYG' and to_currency != 'PYG') else None
 
         if to_currency == 'PYG':
-            commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
+            commission_amount = (convertido_sin_comision * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
             total_pyg = gross_pyg
             total_origen = amount_dec
         else:
-            commission_amount = (gross_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
+            commission_amount = (convertido_sin_comision * Decimal('0.005')).quantize(Decimal('0.01'))
             tax_amount = (commission_amount * Decimal('0.10')).quantize(Decimal('0.01'))
             total_pyg = (gross_pyg * tipo_cambio_local_destino).quantize(Decimal('0.01'))
             total_origen = amount_dec
@@ -1162,6 +1187,7 @@ class CurrencySaleService:
         pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(linked_account, total_pyg, 'PYG', origin_method, initial_status='PENDING')
 
         transaction = CurrencySaleTransaction.objects.create(
+            comision_en_tasa=sim_result.get('comision_incluida', False),
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
             turno=_get_active_turn(user),
@@ -1215,7 +1241,8 @@ class CurrencySaleService:
             to_currency=transaction.to_currency,
             amount=transaction.amount,
             user=user,
-            request=request
+            request=request,
+            incluir_comision=getattr(transaction, 'comision_en_tasa', False),
         )
         current_applied_rate = sim_check['applied_rate']
 
@@ -1255,7 +1282,10 @@ class CurrencySaleService:
             movs.append(_mov(MovimientoSaldoOperacion.CUENTA_CLIENTE, -required_debit, origin_method.moneda, cuenta_cliente=origin_method))
 
         if destination_method:
-            required_credit = _convert_amount(transaction.total_pyg, 'PYG', destination_method.moneda)
+            if destination_method.moneda == transaction.to_currency:
+                required_credit = transaction.converted_amount
+            else:
+                required_credit = _convert_amount(transaction.total_pyg, 'PYG', destination_method.moneda)
             destination_method.balance += required_credit
             destination_method.save()
             movs.append(_mov(MovimientoSaldoOperacion.CUENTA_CLIENTE, required_credit, destination_method.moneda, cuenta_cliente=destination_method))
@@ -1409,7 +1439,7 @@ def currency_sale_view(request):
                 error_message = f"Error al iniciar la venta: {str(e)}"
 
     clientes_asociados = []
-    if request.user.is_authenticated and hasattr(request.user, 'profile') and request.user.profile.keycloak_id:
+    if puede_operar_como_cliente(request.user) and hasattr(request.user, 'profile') and request.user.profile.keycloak_id:
         rels = UsuarioClienteRelacion.objects.filter(keycloak_user_id=request.user.profile.keycloak_id).select_related('cliente')
         clientes_asociados = [r.cliente for r in rels]
     if not clientes_asociados and active_client:
@@ -1706,7 +1736,8 @@ class CurrencyPurchaseService:
             user=user,
             request=request,
             client=cliente,
-            category_override=cliente.categoria if cliente else None
+            category_override=cliente.categoria if cliente else None,
+            incluir_comision=True,
         )
 
         eval_amount_pyg = amount_dec
@@ -1760,6 +1791,10 @@ class CurrencyPurchaseService:
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
             tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
+            if to_currency != 'PYG' and amount_dec:
+                # Cruzada: applied_rate es la tasa cruzada (ej. USD→EUR ≈ 0,85); la tasa local es la de la
+                # moneda de origen en PYG, para que total_pyg y la caja del negocio queden en Guaraníes.
+                tipo_cambio_local_origen = (eval_amount_pyg / amount_dec).quantize(Decimal('0.0001'))
 
         if from_currency == 'PYG':
             commission_amount = (eval_amount_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
@@ -1824,6 +1859,7 @@ class CurrencyPurchaseService:
 
         # Registrar transacción
         transaction = CurrencyPurchaseTransaction.objects.create(
+            comision_en_tasa=sim_result.get('comision_incluida', False),
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
             turno=_get_active_turn(user),
@@ -1905,7 +1941,8 @@ class CurrencyPurchaseService:
             user=user,
             request=request,
             client=cliente,
-            category_override=cliente.categoria if cliente else None
+            category_override=cliente.categoria if cliente else None,
+            incluir_comision=True,
         )
 
         eval_amount_pyg = amount_dec
@@ -1962,6 +1999,10 @@ class CurrencyPurchaseService:
         tipo_cambio_local_origen = Decimal('1.0000')
         if from_currency != 'PYG':
             tipo_cambio_local_origen = sim_result.get('applied_rate', Decimal('1.0000'))
+            if to_currency != 'PYG' and amount_dec:
+                # Cruzada: applied_rate es la tasa cruzada (ej. USD→EUR ≈ 0,85); la tasa local es la de la
+                # moneda de origen en PYG, para que total_pyg y la caja del negocio queden en Guaraníes.
+                tipo_cambio_local_origen = (eval_amount_pyg / amount_dec).quantize(Decimal('0.0001'))
 
         if from_currency == 'PYG':
             commission_amount = (eval_amount_pyg * Decimal('0.005')).quantize(Decimal('0.01'))
@@ -1982,6 +2023,7 @@ class CurrencyPurchaseService:
         pm_type, gateway_ref, gateway_status, tx_status = _process_financial_instrument(payment_method, total_cost_pyg, 'PYG', origin_method, initial_status='PENDING')
 
         transaction = CurrencyPurchaseTransaction.objects.create(
+            comision_en_tasa=sim_result.get('comision_incluida', False),
             user=user if user and user.is_authenticated else None,
             cliente=cliente,
             turno=_get_active_turn(user),
@@ -2046,7 +2088,8 @@ class CurrencyPurchaseService:
             to_currency=transaction.to_currency,
             amount=transaction.amount,
             user=user,
-            request=request
+            request=request,
+            incluir_comision=getattr(transaction, 'comision_en_tasa', False),
         )
         current_applied_rate = sim_check['applied_rate']
 
@@ -2263,7 +2306,7 @@ def currency_purchase_view(request):
     if not is_user_analyst(request.user, request) and acreditation_methods.count() == 0:
         return redirect('client_acreditation_methods')
     clientes_asociados = []
-    if request.user.is_authenticated and hasattr(request.user, 'profile') and request.user.profile.keycloak_id:
+    if puede_operar_como_cliente(request.user) and hasattr(request.user, 'profile') and request.user.profile.keycloak_id:
         rels = UsuarioClienteRelacion.objects.filter(keycloak_user_id=request.user.profile.keycloak_id).select_related('cliente')
         clientes_asociados = [r.cliente for r in rels]
     if not clientes_asociados and active_client:

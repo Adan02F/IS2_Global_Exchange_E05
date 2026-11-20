@@ -30,6 +30,7 @@ from .permisos import (
     ROL_ADMIN, ROL_ANALISTA, ROL_CLIENTE, ROL_CAJERO, ROL_JEFE, ROL_OPERADOR, ROL_ANALISTA_CORP,
     ROLES_DE_CLIENTE, PERMISOS_ADMINISTRATIVOS, NOMBRES_PERMISOS, TODOS_LOS_PERMISOS,
     asegurar_catalogo_permisos, es_rol_admin, permisos_del_rol, rol_efectivo, tiene_permiso, requiere_permiso,
+    puede_operar_como_cliente,
 )
 
 logger = logging.getLogger(__name__)
@@ -453,7 +454,11 @@ def dashboard_redirect_view(request):
 
     rates = ExchangeRate.objects.all().order_by('id')
 
-    has_client_mode = bool(interface_ctx.get('active_client') or interface_ctx.get('clientes_asociados') or interface_ctx['active_group'] or interface_ctx['corporate_groups'] or profile.is_corporate)
+    # Solo quien no tiene rol o tiene rol Cliente usa la interfaz de cliente (los roles no se superponen).
+    has_client_mode = puede_operar_como_cliente(request.user, profile) and bool(
+        interface_ctx.get('active_client') or interface_ctx.get('clientes_asociados') or interface_ctx['active_group']
+        or interface_ctx['corporate_groups'] or profile.is_corporate
+    )
     
     if has_client_mode:
         if interface_ctx.get('active_client'):

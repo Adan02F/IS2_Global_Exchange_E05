@@ -613,3 +613,18 @@ class OperacionTerminal(models.Model):
     def divisa_extranjera(self):
         """Divisa extranjera de la operación (la que no es PYG)."""
         return self.moneda_origen if self.moneda_origen != 'PYG' else self.moneda_destino
+
+    @property
+    def tasa_final(self):
+        """
+        Guaraníes por unidad de divisa que efectivamente resultan de la operación (comisión incluida).
+
+        Es la tasa que se muestra al cliente: la comisión va dentro del precio y no se informa aparte.
+        """
+        if self.moneda_origen == 'PYG':
+            guaranies, divisa = self.monto_origen, self.monto_destino
+        else:
+            guaranies, divisa = self.monto_destino, self.monto_origen
+        if not divisa:
+            return self.tasa_aplicada
+        return guaranies / divisa

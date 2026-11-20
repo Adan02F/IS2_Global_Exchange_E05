@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db import models, IntegrityError
 from authentication.models import UserProfile, AuditLog, Role, CorporateGroup, GroupMembership, ClientRegistrationRequest, MemberRequest, Cliente, UsuarioClienteRelacion, ClientAccreditationMethod
 from authentication.usuarios import normalizar_username, existe_username, obtener_o_crear_usuario_keycloak
-from authentication.permisos import tiene_permiso, denegar_acceso
+from authentication.permisos import tiene_permiso, denegar_acceso, puede_operar_como_cliente
 
 logger = logging.getLogger(__name__)
 
@@ -336,9 +336,6 @@ def delete_cliente_completo(cliente):
             profile.role = None
         profile.is_corporate = False
         profile.save(update_fields=['role', 'is_corporate'])
-        for r in list(profile.roles.all()):
-            if r.name.lower() in client_role_names:
-                profile.roles.remove(r)
     return [p.user for p in profiles_sin_cliente]
 
 
@@ -933,8 +930,6 @@ def admin_approve_client_request(request, request_id):
         if req_profile.role is None:
             req_profile.role = cliente_role
             req_profile.save(update_fields=['role'])
-        elif req_profile.role != cliente_role:
-            req_profile.roles.add(cliente_role)
 
         AuditLog.objects.create(
             user=request.user,
@@ -1049,9 +1044,9 @@ def switch_group_view(request, group_id):
     if not corp_group and str(group_id).isdigit():
         corp_group = CorporateGroup.objects.filter(id=int(group_id)).first()
 
-    if corp_group:
+    if corp_group and puede_operar_como_cliente(request.user, profile):
         membership = GroupMembership.objects.filter(corporate_group=corp_group, fisica_profile=profile).first()
-        if membership or profile.is_corporate or request.user.is_superuser:
+        if membership or profile.is_corporate:
             request.session['active_group_id'] = group_id
             cliente = Cliente.objects.filter(nombre_o_razon_social=corp_group.group_name).first()
             if cliente:
@@ -1078,10 +1073,12 @@ def switch_client_view(request, client_id):
     if not cliente and str(client_id).isdigit():
         cliente = Cliente.objects.filter(id=int(client_id)).first()
 
-    if cliente:
-        has_access = request.user.is_superuser or (profile.role and 'admin' in profile.role.name.lower())
-        if not has_access and profile.keycloak_id:
+    if cliente and puede_operar_como_cliente(request.user, profile):
+        has_access = False
+        if profile.keycloak_id:
             has_access = UsuarioClienteRelacion.objects.filter(keycloak_user_id=profile.keycloak_id, cliente=cliente).exists()
+        if not has_access:
+            has_access = UsuarioClienteRelacion.objects.filter(keycloak_user_id=str(request.user.id), cliente=cliente).exists()
 
         if has_access:
             request.session['active_client_id'] = str(cliente.id)
@@ -1103,9 +1100,35 @@ def get_user_interface_context(request, profile):
     """
     Determina dinámicamente la insignia (badge), el rol activo, el grupo activo y las opciones de cambio de grupo,
     consultando a Keycloak como fuente principal de verdad para los grupos del usuario.
+
+    Cada usuario tiene un único rol principal. Si es del personal (Administrador, Analista, Cajero) no se
+    le muestra nada de cliente (cliente activo, selector de clientes o grupos) aunque esté asociado a uno.
     """
     is_admin = request.user.is_superuser or (profile.role and 'admin' in profile.role.name.lower())
-    
+    request.session.pop('active_role_id', None)
+
+    if not puede_operar_como_cliente(request.user, profile):
+        for clave in ('active_client_id', 'active_group_id', 'user_mode'):
+            request.session.pop(clave, None)
+        if is_admin:
+            badge_text = "Administrador"
+        else:
+            badge_text = profile.role.name if profile.role else None
+        return {
+            'is_admin': is_admin,
+            'badge_text': badge_text,
+            'corporate_groups': [],
+            'active_group': None,
+            'active_membership': None,
+            'has_own_group': False,
+            'user_roles': [],
+            'active_role': profile.role,
+            'is_group_owner': False,
+            'clientes_asociados': [],
+            'active_client': None,
+            'client_role_display': None,
+        }
+
     corporate_groups = []
     if profile.keycloak_id:
         try:
@@ -1253,19 +1276,9 @@ def get_user_interface_context(request, profile):
 
     has_own_group = CorporateGroup.objects.filter(juridica_profile=profile).exists()
 
-    user_roles = list(profile.roles.all())
-    if profile.role and profile.role not in user_roles:
-        user_roles.append(profile.role)
-
-    active_role_id = request.session.get('active_role_id')
-    active_role = None
-    if active_role_id:
-        active_role = Role.objects.filter(id=active_role_id).first()
-    if not active_role and user_roles:
-        active_role = user_roles[0]
-        request.session['active_role_id'] = active_role.id
-
-    is_admin = request.user.is_superuser or (active_role and 'admin' in active_role.name.lower()) or (profile.role and 'admin' in profile.role.name.lower())
+    # Un solo rol principal: no hay roles adicionales ni selector de rol activo.
+    user_roles = []
+    active_role = profile.role
 
     return {
         'is_admin': is_admin,
@@ -1494,7 +1507,6 @@ def admin_user_create_view(request):
         email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '').strip()
         role_id = request.POST.get('role_id', '').strip()
-        additional_roles = request.POST.getlist('additional_roles')
         is_active = request.POST.get('is_active') == 'on'
 
         if not username or not email or not password:
@@ -1527,7 +1539,6 @@ def admin_user_create_view(request):
 
         try:
             role_obj = Role.objects.filter(id=int(role_id)).first() if role_id else None
-            additional_role_objs = Role.objects.filter(id__in=[int(rid) for rid in additional_roles]) if additional_roles else []
 
             errores_kc = []
             kc_id = sync_user_roles_to_keycloak(
@@ -1536,15 +1547,13 @@ def admin_user_create_view(request):
                 password=password,
                 is_active=is_active,
                 role_obj=role_obj,
-                additional_roles=additional_role_objs,
+                additional_roles=[],
                 existing_kc_id=None,
                 errores=errores_kc
             )
 
             new_user = User.objects.create_user(username=username, email=email, password=password, is_active=is_active)
             new_profile = UserProfile.objects.create(user=new_user, role=role_obj, keycloak_id=kc_id)
-            if additional_role_objs:
-                new_profile.roles.set(additional_role_objs)
 
             AuditLog.objects.create(
                 user=request.user,
@@ -1587,7 +1596,6 @@ def admin_user_edit_view(request, user_id):
         email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '').strip()
         role_id = request.POST.get('role_id', '').strip()
-        additional_roles = request.POST.getlist('additional_roles')
         is_active = request.POST.get('is_active') == 'on'
 
         if not username or not email:
@@ -1624,7 +1632,6 @@ def admin_user_edit_view(request, user_id):
 
         try:
             role_obj = Role.objects.filter(id=int(role_id)).first() if role_id else None
-            additional_role_objs = Role.objects.filter(id__in=[int(rid) for rid in additional_roles]) if additional_roles else []
 
             errores_kc = []
             kc_id = sync_user_roles_to_keycloak(
@@ -1633,7 +1640,7 @@ def admin_user_edit_view(request, user_id):
                 password=password,
                 is_active=is_active,
                 role_obj=role_obj,
-                additional_roles=additional_role_objs,
+                additional_roles=[],
                 existing_kc_id=target_profile.keycloak_id,
                 errores=errores_kc
             )
@@ -1648,7 +1655,6 @@ def admin_user_edit_view(request, user_id):
             target_profile.role = role_obj
             target_profile.keycloak_id = kc_id or target_profile.keycloak_id
             target_profile.save()
-            target_profile.roles.set(additional_role_objs)
 
             AuditLog.objects.create(
                 user=request.user,
@@ -1700,19 +1706,10 @@ def admin_user_delete_view(request, user_id):
 @login_required
 def switch_role_view(request, role_id):
     """
-    Permite al usuario cambiar dinámicamente de rol/interfaz activa (Admin, Cajero, Analista, etc.).
+    Obsoleta: cada usuario tiene un único rol principal y no puede cambiarlo. Se conserva la ruta para que
+    los enlaces antiguos no fallen; solo vuelve al panel.
     """
-    ip = get_client_ip(request)
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    role = Role.objects.filter(id=role_id).first()
-    if role and (role == profile.role or role in profile.roles.all() or request.user.is_superuser):
-        request.session['active_role_id'] = role.id
-        AuditLog.objects.create(
-            user=request.user,
-            action="SWITCH_ROLE",
-            ip_address=ip,
-            details=f"Usuario {request.user.username} cambió a la interfaz del rol: {role.name}"
-        )
+    request.session.pop('active_role_id', None)
     return redirect('dashboard_redirect')
 
 

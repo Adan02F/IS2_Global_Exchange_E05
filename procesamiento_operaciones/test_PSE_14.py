@@ -197,7 +197,9 @@ class CurrencySalePSE14Tests(TestCase):
         )
 
         self.assertEqual(tx.status, 'SUCCESS')
-        self.assertEqual(tx.applied_rate, Decimal('7300.0000'))
+        # Tasa de compra 7.300 con la comisión + IVA (0,55 %) incluida: 7.300 × 0,9945.
+        self.assertEqual(tx.applied_rate, Decimal('7259.8500'))
+        self.assertTrue(tx.comision_en_tasa)
         self.assertEqual(tx.amount, Decimal('100'))
         self.assertGreater(tx.converted_amount, Decimal('0'))
         self.assertGreater(tx.commission_amount, Decimal('0'))
@@ -301,3 +303,6 @@ class CurrencySalePSE14Tests(TestCase):
         self.assertEqual(tx.from_currency, 'USD')
         self.assertEqual(tx.to_currency, 'EUR')
         self.assertGreater(tx.converted_amount, Decimal('0'))
+        # total_pyg queda en Guaraníes (valor de los USD), no converted_amount × tasa cruzada.
+        self.assertAlmostEqual(tx.total_pyg, Decimal(tx.monto_moneda_local), delta=Decimal('0.01'))
+        self.assertGreater(tx.total_pyg, Decimal('100000'))

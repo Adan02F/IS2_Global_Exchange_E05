@@ -6,6 +6,8 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from decimal import Decimal
+from authentication.permisos import puede_operar_como_cliente
+from tasas_cambio.comision import FACTOR_NETO
 from tasas_cambio.divisas_default import DIVISAS_DEFAULT, DIVISAS_DEFAULT_SIN_SIMBOLO
 from datetime import timedelta
 import random
@@ -135,10 +137,17 @@ def public_rates_view(request):
 def get_active_client(user, request=None):
     """
     Retorna la instancia del Cliente activo en la sesión o relación del usuario (PSE-13 / Multi-cliente).
+
+    Un usuario con rol del personal (Administrador, Analista, Cajero) no opera como cliente aunque esté
+    asociado a uno: para él no hay cliente activo.
     """
     if not user or not user.is_authenticated:
         return None
     if request and request.session.get('user_mode', False):
+        return None
+    if not puede_operar_como_cliente(user):
+        if request:
+            request.session.pop('active_client_id', None)
         return None
     
     active_client = None
@@ -206,6 +215,8 @@ def get_user_effective_category(user, request=None):
     try:
         if request and request.session.get('user_mode', False):
             return 'MINORISTA'
+        if not puede_operar_como_cliente(user):
+            return 'MINORISTA'
 
         active_client = get_active_client(user, request=request)
         if active_client:
@@ -227,7 +238,50 @@ class SimuladorConversionService:
     """
 
     @staticmethod
-    def simular(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None):
+    def simular(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None,
+                incluir_comision=False):
+        """
+        Simula una conversión y, si se pide, incluye la comisión online dentro de la tasa.
+
+        Con ``incluir_comision=True`` (simulador del cliente y operaciones online) la tasa devuelta en
+        ``applied_rate`` y el ``converted_amount`` ya llevan el cargo de comisión + IVA
+        (``tasas_cambio.comision``), sin mostrarlo como un concepto aparte. Sin ese parámetro (conversiones
+        internas entre cuentas) se devuelve la conversión pura.
+
+        Además del resultado de ``_simular_sin_comision`` agrega ``converted_amount_sin_comision``,
+        ``tasa_sin_comision`` y ``comision_incluida``.
+
+        Returns:
+            dict: Resultado de la simulación.
+        """
+        resultado = SimuladorConversionService._simular_sin_comision(
+            from_currency, to_currency, amount, user=user, request=request, client=client,
+            category_override=category_override,
+        )
+        resultado['converted_amount_sin_comision'] = resultado['converted_amount']
+        resultado['tasa_sin_comision'] = resultado['applied_rate']
+        resultado['comision_incluida'] = False
+        if not incluir_comision or from_currency == to_currency:
+            return resultado
+
+        monto = resultado['amount']
+        if from_currency == 'PYG':
+            tasa = (resultado['applied_rate'] / FACTOR_NETO).quantize(Decimal('0.0001'))
+            convertido = (monto / tasa).quantize(Decimal('0.01'))
+        elif to_currency == 'PYG':
+            tasa = (resultado['applied_rate'] * FACTOR_NETO).quantize(Decimal('0.0001'))
+            convertido = (monto * tasa).quantize(Decimal('0.01'))
+        else:
+            compra, venta = resultado['tasa_compra_origen'], resultado['tasa_venta_destino']
+            tasa = (compra * FACTOR_NETO / venta).quantize(Decimal('0.0001'))
+            convertido = (monto * compra * FACTOR_NETO / venta).quantize(Decimal('0.01'))
+        resultado['applied_rate'] = tasa
+        resultado['converted_amount'] = convertido
+        resultado['comision_incluida'] = True
+        return resultado
+
+    @staticmethod
+    def _simular_sin_comision(from_currency, to_currency, amount, user=None, request=None, client=None, category_override=None):
         """
         Simula una conversión monetaria entre dos divisas aplicando reglas de beneficio parametrizables.
 
@@ -414,6 +468,8 @@ class SimuladorConversionService:
                 'amount': amount_dec,
                 'converted_amount': converted_amount,
                 'applied_rate': effective_rate,
+                'tasa_compra_origen': custom_buy,
+                'tasa_venta_destino': custom_sell,
                 'standard_rate': std_sell,
                 'operation_type': 'CRUZADA',
                 'benefit_percentage': benefit_percentage,
@@ -582,7 +638,8 @@ def currency_simulator_view(request):
                 to_currency=to_currency,
                 amount=amount_str,
                 user=request.user,
-                request=request
+                request=request,
+                incluir_comision=True,
             )
             operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
         except ValidationError as e:
@@ -598,7 +655,8 @@ def currency_simulator_view(request):
                     to_currency=to_currency,
                     amount=amount_str,
                     user=request.user,
-                    request=request
+                    request=request,
+                    incluir_comision=True,
                 )
                 operation_proposal = construir_propuesta_operacion(simulation_result, operation, request)
             except ValidationError as e:

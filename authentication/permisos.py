@@ -109,6 +109,42 @@ def es_rol_admin(nombre_rol):
     return 'admin' in (nombre_rol or '').lower()
 
 
+def es_rol_de_personal(nombre_rol):
+    """
+    Indica si el rol es del personal de la casa de cambios (Administrador, Analista o Cajero).
+
+    Los roles del sistema son excluyentes: un usuario tiene un solo rol principal, y si es del personal
+    no opera como cliente aunque esté asociado a uno.
+    """
+    nombre = (nombre_rol or '').lower()
+    return es_rol_admin(nombre) or 'cajero' in nombre or ('analista' in nombre and 'corporativo' not in nombre)
+
+
+def puede_operar_como_cliente(user, profile=None):
+    """
+    Indica si el usuario puede usar la interfaz de cliente (cliente activo, selector de clientes, operaciones).
+
+    Solo si no tiene rol o su rol es Cliente. Un Administrador, Analista o Cajero (o un superusuario) nunca
+    ve la parte de cliente, aunque esté asociado a un cliente.
+
+    Args:
+        user (User): Usuario.
+        profile (UserProfile | None): Perfil ya cargado (opcional).
+
+    Returns:
+        bool: True si puede operar como cliente.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_superuser:
+        return False
+    if profile is None:
+        from .models import UserProfile
+        profile = UserProfile.objects.filter(user=user).select_related('role').first()
+    rol = profile.role if profile is not None else None
+    return rol is None or not es_rol_de_personal(rol.name)
+
+
 def permisos_del_rol(nombre_rol):
     """
     Devuelve los permisos efectivos de un rol.
@@ -137,17 +173,8 @@ def permisos_del_rol(nombre_rol):
 
 
 def _rol_de_sistema(user, profile, request):
-    """Rol fijo del sistema con el que opera el usuario (respeta el rol activo elegido)."""
-    rol = profile.role if profile else None
-    if request is not None and profile is not None:
-        rol_activo_id = request.session.get('active_role_id')
-        if rol_activo_id:
-            disponible = profile.roles.filter(id=rol_activo_id).first()
-            if disponible is None and profile.role_id == rol_activo_id:
-                disponible = profile.role
-            if disponible is not None:
-                rol = disponible
-    return rol
+    """Rol principal del usuario: es único (los roles del sistema no se superponen)."""
+    return profile.role if profile else None
 
 
 def _rol_en_cliente_activo(user, profile, request):
@@ -160,6 +187,8 @@ def _rol_en_cliente_activo(user, profile, request):
     from .models import UsuarioClienteRelacion, GroupMembership
 
     if request is not None and request.session.get('user_mode'):
+        return None
+    if not puede_operar_como_cliente(user, profile):
         return None
 
     ids_usuario = [str(user.id)]

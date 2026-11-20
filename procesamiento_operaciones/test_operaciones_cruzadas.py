@@ -102,13 +102,15 @@ class OperacionesCruzadasTests(TestCase):
             to_currency='USD',
             amount=amount_eur,
             user=self.user,
-            request=req
+            request=req,
+            incluir_comision=True,
         )
 
         self.assertEqual(sim_res['operation_type'], 'CRUZADA')
         self.assertIsNotNone(sim_res['applied_rate'])
 
         # Procesar compra
+        caja_antes = self.pm.balance
         tx = CurrencyPurchaseService.process_purchase(
             user=self.user,
             from_currency='EUR',
@@ -127,6 +129,13 @@ class OperacionesCruzadasTests(TestCase):
         self.assertIsNotNone(tx.tipo_cambio_local_origen)
         self.assertIsNotNone(tx.monto_moneda_local)
         self.assertIn("Caja: Ingresa stock de", tx.transparent_breakdown)
+
+        # La caja del negocio recibe el equivalente en Guaraníes de los EUR (VIP: 7.900 × 1,02 = 8.058),
+        # no monto × tasa cruzada.
+        self.assertEqual(tx.tipo_cambio_local_origen, Decimal('8058.0000'))
+        self.assertEqual(tx.total_pyg, Decimal('8058000.00'))
+        self.pm.refresh_from_db()
+        self.assertEqual(self.pm.balance, caja_antes + Decimal('8058000.00'))
 
     def test_cross_currency_web_view(self):
         """

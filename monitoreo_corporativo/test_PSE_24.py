@@ -36,7 +36,7 @@ def _fecha(anio, mes, dia, hora=12):
 
 def crear_operacion(modelo, fecha=None, desde='PYG', hacia='USD', convertido='0', tasa='1', comision='0',
                     iva='0', total='0', estado='SUCCESS', ventanilla=False, cliente=None, monto='1',
-                    local=None, beneficio='0'):
+                    local=None, beneficio='0', estandar=None, comision_en_tasa=False):
     """
     Crea una compra o venta de prueba y, si se indica, fija su fecha (``timestamp`` es auto_now_add).
 
@@ -56,6 +56,8 @@ def crear_operacion(modelo, fecha=None, desde='PYG', hacia='USD', convertido='0'
         monto (str): Monto de origen.
         local (str | None): Valor en PYG de la operación (``monto_moneda_local``).
         beneficio (str): Beneficio por categoría del cliente (%).
+        estandar (str | None): Tasa de pizarra (por defecto, la tasa aplicada).
+        comision_en_tasa (bool): True si la comisión + IVA se cobró dentro de la tasa (online).
 
     Returns:
         Model: La transacción creada.
@@ -63,7 +65,8 @@ def crear_operacion(modelo, fecha=None, desde='PYG', hacia='USD', convertido='0'
     tx = modelo.objects.create(
         cliente=cliente, from_currency=desde, to_currency=hacia, amount=Decimal(monto),
         monto_moneda_local=Decimal(local) if local is not None else None, benefit_percentage=Decimal(beneficio),
-        converted_amount=Decimal(convertido), applied_rate=Decimal(tasa), standard_rate=Decimal(tasa),
+        converted_amount=Decimal(convertido), applied_rate=Decimal(tasa), standard_rate=Decimal(estandar or tasa),
+        comision_en_tasa=comision_en_tasa,
         commission_amount=Decimal(comision), tax_amount=Decimal(iva), total_pyg=Decimal(total), status=estado,
         payment_method_type=reportes.PAGO_VENTANILLA if ventanilla else 'TRANSFERENCIA',
     )
@@ -405,3 +408,27 @@ class GananciaConDivisasCruzadasYBeneficioTests(TestCase):
         kpis = dashboard.kpis_periodo(date(2026, 10, 1), HOY)
         self.assertEqual(kpis['beneficio_pyg'], Decimal('14900.00'))
         self.assertEqual(kpis['margen_cambiario_pyg'], Decimal('-7400.00'))
+
+    def test_compra_con_comision_en_la_tasa_no_la_cuenta_dos_veces(self):
+        """
+        Compra online PYG→USD de ₲745.000: el cliente recibe 99,45 USD a 7.491,2016 (7.450 / 0,9945).
+        Comisión 3.725 (+ IVA 372,50 que pagó el cliente) y margen con la tasa sin cargo:
+        99,45 × (7.450 − 7.375) = 7.458,75 → ganancia 11.183,75 (el IVA no se descuenta).
+        """
+        fila = self._fila(CurrencyPurchaseTransaction, desde='PYG', hacia='USD', monto='745000', convertido='99.45',
+                          tasa='7491.2016', estandar='7450', comision='3725', iva='372.50', total='745000',
+                          local='745000', comision_en_tasa=True)
+        self.assertEqual(fila.comision_pyg, Decimal('3725.00'))
+        self.assertEqual(fila.margen_cambiario_pyg, Decimal('7458.75'))
+        self.assertEqual(fila.ganancia_neta_pyg, Decimal('11183.75'))
+
+    def test_venta_con_comision_en_la_tasa_coincide_con_lo_que_gana_la_casa(self):
+        """
+        Venta online de 100 USD a 7.259,85 (7.300 × 0,9945): la casa paga ₲725.985 por USD que valen
+        ₲737.500 a la media → gana 11.515, de los que 365 son IVA a pagar: ganancia 11.150.
+        """
+        fila = self._fila(CurrencySaleTransaction, desde='USD', hacia='PYG', monto='100', convertido='725985',
+                          tasa='7259.85', estandar='7300', comision='3650', iva='365', total='725985',
+                          local='730000', comision_en_tasa=True)
+        self.assertEqual(fila.margen_cambiario_pyg, Decimal('7500.00'))
+        self.assertEqual(fila.ganancia_neta_pyg, Decimal('11150.00'))

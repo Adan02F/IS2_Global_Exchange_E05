@@ -14,7 +14,10 @@ Criterios contables aplicados:
 * **Volumen operado** = ``total_pyg`` de la operación. En las operaciones cruzadas (ninguna moneda
   es PYG, ej. USD→EUR) ``total_pyg`` no está en Guaraníes, así que se usa el valor en PYG de la
   moneda de origen (``monto_moneda_local`` o monto × tasa de la pata de origen).
-* **Ganancia neta** = (comisión − IVA) + margen cambiario, todo en PYG.
+* **Ganancia neta** = (comisión − IVA) + margen cambiario, todo en PYG. En las operaciones online con
+  ``comision_en_tasa`` (comisión + IVA cobrados dentro de la tasa, ver ``tasas_cambio.comision``) el IVA lo
+  pagó el cliente y no se descuenta: ganancia = comisión + margen. El margen de esas operaciones se mide con
+  la tasa sin el cargo, para no contar la comisión dos veces.
 
 Moneda de la comisión (así la guardan los servicios de operaciones):
 
@@ -47,6 +50,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from procesamiento_operaciones.models import CurrencyPurchaseTransaction, CurrencySaleTransaction
+from tasas_cambio.comision import FACTOR_NETO
 from tasas_cambio.models import ExchangeRate, ExchangeRateHistory
 
 TIPO_COMPRA = 'COMPRA'
@@ -64,6 +68,7 @@ CENTIMOS = Decimal('0.01')
 CERO = Decimal('0.00')
 UNO = Decimal('1')
 CIEN = Decimal('100')
+CUATRO_DECIMALES = Decimal('0.0001')
 
 COLUMNAS_EXPORTACION = [
     'Fecha', 'Tipo', 'Canal', 'Cliente', 'Cajero / Usuario', 'Moneda Origen', 'Moneda Destino',
@@ -289,6 +294,28 @@ def tasas_por_pata(transaccion, cotizaciones=None):
     """
     origen, destino = transaccion.from_currency, transaccion.to_currency
     aplicada = _decimal(transaccion.applied_rate) or CERO
+    comision_en_tasa = bool(getattr(transaccion, 'comision_en_tasa', False))
+    if comision_en_tasa:
+        # La tasa aplicada incluye el cargo de comisión + IVA, que el reporte ya suma como comisión.
+        # Para el margen se usa la tasa sin ese cargo: la de pizarra con el beneficio del cliente.
+        estandar = _decimal(transaccion.standard_rate) or CERO
+        beneficio = (_decimal(transaccion.benefit_percentage) or CERO) / CIEN
+        if not es_cruzada(transaccion):
+            if origen != MONEDA_BASE:
+                base = (estandar * (UNO + beneficio)).quantize(CUATRO_DECIMALES) if estandar else aplicada / FACTOR_NETO
+                return {'origen': base, 'destino': None}
+            base = (estandar * (UNO - beneficio)).quantize(CUATRO_DECIMALES) if estandar else aplicada * FACTOR_NETO
+            return {'origen': None, 'destino': base}
+        monto = _decimal(transaccion.amount) or CERO
+        local = _decimal(getattr(transaccion, 'monto_moneda_local', None))
+        if local and monto:
+            tasa_origen = local / monto
+            if estandar:
+                tasa_destino = (estandar * (UNO - beneficio)).quantize(CUATRO_DECIMALES)
+            else:
+                tasa_destino = tasa_origen * FACTOR_NETO / aplicada if aplicada else None
+            return {'origen': tasa_origen, 'destino': tasa_destino}
+
     if not es_cruzada(transaccion):
         return {
             'origen': aplicada if origen != MONEDA_BASE else None,
@@ -465,9 +492,13 @@ def _a_fila(transaccion, tipo, cotizaciones=None):
     margen = sum(margenes.values(), CERO)
     beneficio = _redondear(sum(beneficios.values(), CERO))
 
+    # Si la comisión se cobró dentro de la tasa, el cliente pagó también el IVA: la casa solo lo traslada
+    # a Hacienda y no es un costo. Si no, el IVA se descuenta de la comisión.
+    comision_neta = comision if getattr(transaccion, 'comision_en_tasa', False) else comision - iva
+
     ganancia_por_divisa = dict(margenes)
     divisa = divisa_de_operacion(transaccion.from_currency, transaccion.to_currency)
-    ganancia_por_divisa[divisa] = ganancia_por_divisa.get(divisa, CERO) + (comision - iva)
+    ganancia_por_divisa[divisa] = ganancia_por_divisa.get(divisa, CERO) + comision_neta
 
     operador = transaccion.turno.cajero if transaccion.turno_id else transaccion.user
     return FilaReporte(
@@ -483,7 +514,7 @@ def _a_fila(transaccion, tipo, cotizaciones=None):
         volumen_pyg=_redondear(volumen_pyg(transaccion, cotizaciones)),
         comision_pyg=comision,
         iva_pyg=iva,
-        ganancia_neta_pyg=comision - iva + margen,
+        ganancia_neta_pyg=comision_neta + margen,
         margen_cambiario_pyg=margen,
         beneficio_pyg=beneficio,
         ganancia_por_divisa=ganancia_por_divisa,

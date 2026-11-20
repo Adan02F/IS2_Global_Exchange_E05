@@ -62,7 +62,7 @@
                         <p class="text-2xl font-bold mt-1 text-emerald-400">{{ operacion.monto_destino|floatformat:"2g" }} <span class="text-base text-slate-400">{{ operacion.moneda_destino }}</span></p>
                     </div>
                 </div>
-                <p class="text-xs text-slate-400 mb-6">Tasa aplicada {{ operacion.tasa_aplicada|floatformat:"2g" }} Gs · Comisión incluida · Ajuste a billetes {{ operacion.redondeo_pyg|floatformat:"0g" }} Gs</p>
+                <p class="text-xs text-slate-400 mb-6">Tasa aplicada {{ operacion.tasa_final|floatformat:"2g" }} Gs · Ajuste a billetes {{ operacion.redondeo_pyg|floatformat:"0g" }} Gs</p>
 
                 {% if nueva_cotizacion %}
                 <div class="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-5 mb-6">
@@ -138,7 +138,7 @@
                     <div class="flex justify-between py-2"><dt class="text-slate-500">Depositado</dt><dd>{{ operacion.efectivo_depositado|floatformat:"2g" }} {{ operacion.moneda_origen }}</dd></div>
                     <div class="flex justify-between py-2"><dt class="text-slate-500">Recibe</dt><dd class="font-bold text-emerald-700">{{ operacion.monto_destino|floatformat:"2g" }} {{ operacion.moneda_destino }}</dd></div>
                     {% if operacion.vuelto %}<div class="flex justify-between py-2"><dt class="text-slate-500">Vuelto</dt><dd>{{ operacion.vuelto|floatformat:"2g" }} {{ operacion.moneda_origen }}</dd></div>{% endif %}
-                    <div class="flex justify-between py-2"><dt class="text-slate-500">Tasa aplicada</dt><dd>{{ operacion.tasa_aplicada|floatformat:"2g" }} Gs</dd></div>
+                    <div class="flex justify-between py-2"><dt class="text-slate-500">Tasa aplicada</dt><dd>{{ operacion.tasa_final|floatformat:"2g" }} Gs</dd></div>
                     <div class="flex justify-between py-2"><dt class="text-slate-500">Fecha</dt><dd>{{ operacion.completado_en|date:"d/m/Y H:i" }}</dd></div>
                 </dl>
                 <p class="text-sm font-semibold mb-2">Billetes entregados</p>

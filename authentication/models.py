@@ -50,7 +50,8 @@ class UserProfile(models.Model):
     
     Attributes:
         user (OneToOneField): Relación uno a uno con el modelo User de Django.
-        role (ForeignKey): Rol asignado al usuario.
+        role (ForeignKey): Rol principal y único del usuario (Admin, Analista, Cajero o Cliente; vacío = usuario
+            sin rol). Los roles no se superponen: no hay roles adicionales.
         is_corporate (BooleanField): Indicador si el usuario es cliente corporativo.
         mfa_enabled (BooleanField): Indicador si MFA/iToken está habilitado.
         itoken_verified (BooleanField): Indicador si el iToken ha sido verificado en la sesión.
@@ -67,7 +68,6 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="Usuario")
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Rol")
-    roles = models.ManyToManyField(Role, blank=True, related_name='user_profiles', verbose_name="Roles Adicionales")
     is_corporate = models.BooleanField(default=False, verbose_name="Es Cliente Corporativo")
     mfa_enabled = models.BooleanField(default=False, verbose_name="MFA / iToken Habilitado")
     itoken_verified = models.BooleanField(default=False, verbose_name="iToken Verificado")

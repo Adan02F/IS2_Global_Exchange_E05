@@ -149,6 +149,7 @@ class CurrencyPurchaseTransaction(SifenFacturaMixin, models.Model):
     tipo_cambio_cruzado = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True, verbose_name="Tipo de Cambio Cruzado")
     tipo_cambio_local_origen = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True, verbose_name="Tipo de Cambio Local Origen")
     monto_moneda_local = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True, verbose_name="Monto Moneda Local (Audit)")
+    comision_en_tasa = models.BooleanField(default=False, verbose_name="Comisión incluida en la tasa", help_text="True si la comisión + IVA se cobró dentro de la tasa aplicada (operaciones online).")
     total_origen = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True, verbose_name="Total en Moneda Origen")
 
     class Meta:
@@ -236,6 +237,7 @@ class CurrencySaleTransaction(SifenFacturaMixin, models.Model):
     tipo_cambio_cruzado = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True, verbose_name="Tipo de Cambio Cruzado")
     tipo_cambio_local_origen = models.DecimalField(max_digits=12, decimal_places=4, blank=True, null=True, verbose_name="Tipo de Cambio Local Origen")
     monto_moneda_local = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True, verbose_name="Monto Moneda Local (Audit)")
+    comision_en_tasa = models.BooleanField(default=False, verbose_name="Comisión incluida en la tasa", help_text="True si la comisión + IVA se cobró dentro de la tasa aplicada (operaciones online).")
     total_origen = models.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True, verbose_name="Total en Moneda Origen")
 
     class Meta:

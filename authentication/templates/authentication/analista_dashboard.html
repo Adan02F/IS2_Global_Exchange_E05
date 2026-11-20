@@ -19,18 +19,6 @@
                     <span class="bg-purple-600 text-xs px-2.5 py-1 rounded-full font-medium ml-2">Analista de Operaciones</span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    {% if user_roles and user_roles|length > 1 %}
-                    <div class="flex items-center space-x-2">
-                        <span class="text-xs text-slate-300">Rol Activo:</span>
-                        <select onchange="window.location.href=this.value" class="bg-slate-800 text-white text-xs px-2 py-1 rounded border border-slate-700">
-                            {% for r in user_roles %}
-                            <option value="{% url 'switch_role' r.id %}" {% if active_role and active_role.id == r.id %}selected{% endif %}>
-                                {{ r.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
                     <span class="text-sm text-slate-300">Usuario: <strong class="text-white">{{ request.user.username }}</strong></span>
                     <a href="{% url 'logout' %}" class="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
                         Cerrar Sesión

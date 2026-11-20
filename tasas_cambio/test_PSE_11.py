@@ -170,4 +170,5 @@ class SimuladorConversionPSE11Tests(TestCase):
             'amount': '745000'
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "100.00")
+        # Sin beneficio y con la comisión + IVA dentro de la tasa: 745.000 / (7.450 / 0,9945) = 99,45 USD.
+        self.assertContains(response, "99.45")
