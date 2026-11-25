@@ -204,8 +204,25 @@ SIFEN_API_PASSWORD = os.environ.get('SIFEN_API_PASSWORD', 'testpassword')
 SIFEN_API_BASE_URL = os.environ.get('SIFEN_API_BASE_URL', 'https://apitest.facturasegura.com.py')
 # Rango de facturas (dNumDoc) autorizado por Factura Segura. Configurable por entorno para que local y
 # producción no emitan el mismo número con la misma cuenta (SIFEN rechaza los duplicados).
-FACTURASEGURA_NUMERO_INICIAL = int(os.environ.get('FACTURASEGURA_NUMERO_INICIAL', 138))
-FACTURASEGURA_NUMERO_FINAL = int(os.environ.get('FACTURASEGURA_NUMERO_FINAL', 147))
+# Pueden ser varios tramos no consecutivos, en orden ascendente: "146-147,541-550,690-697".
+# Se usan en orden; al agotarse un tramo se sigue con el siguiente. Por defecto (producción): 146-147 (reingreso
+# de los rechazados) y 541-550; el tramo 690-697 queda para el entorno local (ver .env).
+
+
+def _parsear_rangos(texto):
+    """Convierte "146-147,541-550" en [(146, 147), (541, 550)], ordenado."""
+    rangos = []
+    for tramo in texto.replace(' ', '').split(','):
+        if not tramo:
+            continue
+        inicio, _, fin = tramo.partition('-')
+        rangos.append((int(inicio), int(fin or inicio)))
+    return sorted(rangos)
+
+
+FACTURASEGURA_RANGOS = _parsear_rangos(os.environ.get('FACTURASEGURA_RANGOS', '146-147,541-550'))
+FACTURASEGURA_NUMERO_INICIAL = FACTURASEGURA_RANGOS[0][0]
+FACTURASEGURA_NUMERO_FINAL = FACTURASEGURA_RANGOS[-1][1]
 
 # Notas de crédito electrónicas (iTiDE = 5): numeración propia, independiente de las facturas.
 # Rango asignado por Factura Segura al establecimiento 001, punto de expedición 003.

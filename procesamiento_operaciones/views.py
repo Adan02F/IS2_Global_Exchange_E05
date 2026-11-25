@@ -68,19 +68,41 @@ def _clave_secuencia(tide=SIFEN_TIDE):
     return f"{SIFEN_EST}-{SIFEN_PUNTO_EXP}-{tide}"
 
 
+def _rangos_numeracion(tide=SIFEN_TIDE):
+    """
+    Tramos de dNumDoc autorizados para el tipo de documento, en orden ascendente.
+
+    Returns:
+        list[tuple[int, int]]: Pares (inicial, final) de cada tramo.
+    """
+    if tide == SIFEN_TIDE_NOTA_CREDITO:
+        return [(
+            int(getattr(settings, "FACTURASEGURA_NC_NUMERO_INICIAL", 49)),
+            int(getattr(settings, "FACTURASEGURA_NC_NUMERO_FINAL", 60)),
+        )]
+    rangos = getattr(settings, "FACTURASEGURA_RANGOS", None)
+    if rangos:
+        return sorted((int(a), int(b)) for a, b in rangos)
+    return [(int(settings.FACTURASEGURA_NUMERO_INICIAL), int(settings.FACTURASEGURA_NUMERO_FINAL))]
+
+
 def _rango_numeracion(tide=SIFEN_TIDE):
     """
-    Rango de dNumDoc autorizado para el tipo de documento.
+    Primer y ultimo dNumDoc autorizados para el tipo de documento.
 
     Returns:
         tuple[int, int]: Numero inicial y final.
     """
-    if tide == SIFEN_TIDE_NOTA_CREDITO:
-        return (
-            int(getattr(settings, "FACTURASEGURA_NC_NUMERO_INICIAL", 49)),
-            int(getattr(settings, "FACTURASEGURA_NC_NUMERO_FINAL", 60)),
-        )
-    return int(settings.FACTURASEGURA_NUMERO_INICIAL), int(settings.FACTURASEGURA_NUMERO_FINAL)
+    rangos = _rangos_numeracion(tide)
+    return rangos[0][0], rangos[-1][1]
+
+
+def _siguiente_numero(ultimo, rangos):
+    """Primer numero autorizado mayor que ``ultimo`` (salta los huecos entre tramos), o None si no queda."""
+    for inicial, final in rangos:
+        if ultimo < final:
+            return max(ultimo + 1, inicial)
+    return None
 
 
 def _reservar_numero_documento(tide=SIFEN_TIDE):
@@ -96,16 +118,16 @@ def _reservar_numero_documento(tide=SIFEN_TIDE):
     Raises:
         SifenRangoAgotado: Si el proximo numero supera el final del rango autorizado.
     """
-    inicial, final = _rango_numeracion(tide)
+    rangos = _rangos_numeracion(tide)
     with db_transaction.atomic():
         sec, _ = SifenSecuencia.objects.select_for_update().get_or_create(
-            clave=_clave_secuencia(tide), defaults={"ultimo_numero": inicial - 1}
+            clave=_clave_secuencia(tide), defaults={"ultimo_numero": rangos[0][0] - 1}
         )
         if sec.numero_en_proceso is not None:
             return None
-        numero = sec.ultimo_numero + 1
-        if numero > final:
-            raise SifenRangoAgotado(f"Se agoto el rango de numeros de documento (hasta {final})")
+        numero = _siguiente_numero(sec.ultimo_numero, rangos)
+        if numero is None:
+            raise SifenRangoAgotado(f"Se agoto el rango de numeros de documento (hasta {rangos[-1][1]})")
         sec.numero_en_proceso = numero
         sec.cdc_en_proceso = ""
         sec.reservado_en = timezone.now()

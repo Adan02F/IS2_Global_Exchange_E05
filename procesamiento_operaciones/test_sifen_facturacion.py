@@ -208,3 +208,26 @@ class NumeracionSifenTests(TestCase):
         self.assertEqual(tx.sifen_estado, "Error")
         self.assertIn("rango", tx.sifen_error)
         servicio.generar_de.assert_not_called()
+
+
+class TramosNumeracionTests(TestCase):
+    """La numeración de facturas recorre varios tramos no consecutivos autorizados por SIFEN."""
+
+    RANGOS = [(146, 147), (541, 550), (690, 697)]
+
+    def test_salta_al_siguiente_tramo(self):
+        """Al terminar un tramo se sigue con el inicio del siguiente."""
+        self.assertEqual(views._siguiente_numero(145, self.RANGOS), 146)
+        self.assertEqual(views._siguiente_numero(146, self.RANGOS), 147)
+        self.assertEqual(views._siguiente_numero(147, self.RANGOS), 541)
+        self.assertEqual(views._siguiente_numero(550, self.RANGOS), 690)
+        self.assertEqual(views._siguiente_numero(143, [(690, 697)]), 690)
+
+    def test_agotado(self):
+        """Después del último número de todos los tramos no queda número disponible."""
+        self.assertIsNone(views._siguiente_numero(697, self.RANGOS))
+
+    def test_parseo_de_rangos(self):
+        """El texto de configuración se convierte en tramos ordenados."""
+        from globalexchange.settings import _parsear_rangos
+        self.assertEqual(_parsear_rangos("690-697, 146-147,541-550"), self.RANGOS)
